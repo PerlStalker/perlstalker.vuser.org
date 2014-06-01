@@ -1,0 +1,79 @@
+---
+layout: post
+title: Convert a Moose Object into a Subtype
+date: 2011-06-03 14:01
+comments: true
+categories: [Moose, perl]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-06-03 Fri 14:01]</span></span></i>
+</p>
+
+<p>
+Have you ever had the situation where you had a parent class but you find out
+later in the code that you really want a subclass? With perl Moose, it's
+really easy to do.
+</p>
+
+<p>
+Consider the classic point example described in 
+<a href="http://search.cpan.org/~doy/Moose-2.0001/lib/Moose/Cookbook/Basics/Recipe1.pod">Moose::Cookbook::Basics::Recipe1</a>. Suppose I start with a Point but I decide
+later that I need that point to shift into 3D. I don't want to change the
+values for x and y, I just want to add the new z point. I could brute force it
+by creating a new point and copying the values over from the old point but
+that feels like more work than it should be. Well, it is.
+</p>
+
+<p>
+Fortunately, Moose uses Class::MOP::Class which provides the rebless_instance
+method which can convert a object into a subtype.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-perl"><span style="color: #00ffff;">package</span> <span style="color: #87cefa;">Point</span>;
+<span style="color: #00ffff;">use</span> <span style="color: #7fffd4;">Moose</span>;
+
+has <span style="color: #ffa07a;">'x'</span> =&gt; (isa =&gt; <span style="color: #ffa07a;">'Int'</span>, is =&gt; <span style="color: #ffa07a;">'rw'</span>);
+has <span style="color: #ffa07a;">'y'</span> =&gt; (isa =&gt; <span style="color: #ffa07a;">'Int'</span>, is =&gt; <span style="color: #ffa07a;">'rw'</span>);
+
+<span style="color: #00ffff;">package</span> <span style="color: #87cefa;">Point3D</span>;
+<span style="color: #00ffff;">use</span> <span style="color: #7fffd4;">Moose</span>;
+extends <span style="color: #ffa07a;">'Point'</span>;
+
+has <span style="color: #ffa07a;">'z'</span> =&gt; (isa =&gt; <span style="color: #ffa07a;">'Int'</span>, is =&gt; <span style="color: #ffa07a;">'rw'</span>);
+
+<span style="color: #00ffff;">package</span> <span style="color: #87cefa;">main</span>;
+<span style="color: #00ffff;">use</span> <span style="color: #7fffd4;">Data</span>::Dumper;
+
+<span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">p1</span>  = Point-&gt;new(x =&gt; 4, y =&gt; 3);
+print Dumper $<span style="color: #eedd82;">p1</span>;
+
+$<span style="color: #eedd82;">p1</span> = Point3D-&gt;meta-&gt;rebless_instance($<span style="color: #eedd82;">p1</span>);
+print Dumper $<span style="color: #eedd82;">p1</span>;
+</pre>
+</div>
+
+<p>
+And the output:
+</p>
+
+<pre class="example">
+$VAR1 = bless( {
+                 'y' =&gt; 3,
+                 'x' =&gt; 4
+               }, 'Point' );
+$VAR1 = bless( {
+                 'y' =&gt; 3,
+                 'x' =&gt; 4
+               }, 'Point3D' );
+</pre>
+
+<p>
+Now <code>$p1</code> is a Point3D object rather than a Point object.
+</p>
+
+<p>
+You can go backwards, too, with the <code>rebless_instance_back</code> method but you face
+the potential for data loss when you do that.
+</p>

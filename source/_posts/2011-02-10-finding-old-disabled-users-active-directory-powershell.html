@@ -1,0 +1,64 @@
+---
+layout: post
+title: Finding Old Disabled Users in Active Directory with Powershell
+date: 2011-02-10 12:52
+comments: true
+categories: [active-directory, powershell]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-02-10 Thu 12:52]</span></span></i>
+</p>
+
+<p>
+I've been putting off dealing with a problem at work for a while and I
+finally worked out a way to deal with it. At work, when a faculty or
+staff member leaves, we don't delete the account right away. Instead,
+the account is disabled. It's sort of a CYA policy. It came in useful
+today, in fact, when I was told that the professor whose account I
+disabled a couple of days ago was actually granted emeritus status and
+so his account needed to hang around a while more. The problem is that
+all those disabled accounts start to add up and I didn't have an easy
+way to tell which accounts can actually be whacked and which to hang
+on to. Well, thanks to the <a href="http://technet.microsoft.com/en-us/library/dd378937(WS.10).aspx">Active Directory module for Powershell</a>, I
+came up with an easy way to find those accounts.
+</p>
+
+<p>
+The AD module provides a cmdlet called <code>Search-ADAccount</code> which can be used to,
+surprise, surprise, search for AD accounts. <code>Search-ADAccount</code> has a few
+pre-built options for common searches including finding disabled accounts and
+inactive accounts, i.e. accounts that haven't been used in a while.
+Unfortunately, you can use both at the same time.
+</p>
+
+<p>
+So, the plan is to search for disabled AD accounts and check the last logon
+date. The idea is that, since the account has been disabled, the last logon
+date should give a reasonable approximation of when the account was disabled.
+With a little help (okay, a lot of help) from <a href="http://twitter.com/StevenMurawski">@StevenMurawski</a>, I came with
+this little gem.
+</p>
+
+<pre class="example">
+Search-ADAccount -accountdisabled | where {$_.lastlogondate -lt
+(get-date).addmonths(-12)} | FT Name,LastLogonDate
+</pre>
+
+<p>
+That prints out a list if users and the last time the user logged in who did
+not log in the last twelve months.
+</p>
+
+<p>
+The fun comes when you replace <code>FT Name,LastLogonDate</code> with
+<code>Remove-ADUser</code>. I shouldn't have to warn you about using care with that
+last command. It should happily delete all of the old, disabled
+accounts. See the <a href="http://technet.microsoft.com/en-us/library/ee617247.aspx">Search-ADAccount docs</a> for more details on limiting
+the scope of your search.
+</p>
+
+<p>
+<b>Update <span class="timestamp-wrapper"><span class="timestamp">[2012-03-18 Sun 21:40]</span></span>:</b> You can add <code>-searchbase</code> to
+<code>Search-ADAccount</code> to limit your search to a specific OU. See the
+previously mentioned docs for details.
+</p>

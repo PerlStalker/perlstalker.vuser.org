@@ -1,0 +1,125 @@
+---
+layout: post
+title: Managing /etc/hosts With Puppet
+date: 2012-08-28 16:38
+comments: true
+categories: [puppet, augeas]
+---
+<p>
+So, here's the situation. I have a stack of VM servers running KVM and
+libvirt. The hosts need to connect to a SAN for ISO storage and,
+potentially, VM disks. The problem is that the VM running DNS may not
+be up yet when the host starts. That's a problem since I'm referencing
+the san by it's host name rather than the IP address. Yes, I could
+change all of my configs to use the IP instead but host names are a
+lot easier to deal with, most of the time.
+</p>
+
+<p>
+Well, I could work around the lack of DNS by putting an entry for the
+server in <code>/etc/hosts</code> but then I'd have to update it on every server
+if I ever change the IP address. Fortunately, puppet makes it
+easy. Sort of.
+</p>
+
+<p>
+Puppet is a wonderful tool for managing Linux (and other *nix)
+servers. It's a little weak, though, when all you want to do is add a
+line to file. That's exactly what I wanted to do with <code>/etc/hosts</code>.
+</p>
+
+<p>
+The good news is that puppet has a hook into the tool <a href="http://www.augeas.net/">augeus</a>. That
+makes editing the config relatively easy but plugging that into puppet
+is still a little messy. To make it easier, I created a class and
+define to tidy that up a bit.
+</p>
+
+<p>
+<b>Update <span class="timestamp-wrapper"><span class="timestamp">[2012-09-03 Mon 07:15]</span></span>:</b> Puppet actually makes this easier
+ than I thought. There already exists a <a href="http://docs.puppetlabs.com/references/latest/type.html#host">host data type</a> that I totally
+ missed before. Dominic Cleal also <a href="https://twitter.com/domcleal/status/242533984200978432">pointed me to</a> a module that he
+ wrote that adds <a href="http://forge.puppetlabs.com/domcleal/augeasproviders">augeus providers</a> to some of the default data types,
+ including host.
+</p>
+
+
+<pre class="example">
+class hosts {
+  define entry(
+    $ipaddr,
+    $canonical,
+    $aliases = 'UNSET' # I want to make this an array
+    )
+    {
+      augeas { "create_$title":
+        context =&gt; '/files/etc/hosts',
+        changes =&gt; [
+                    "ins 01 after 1",
+                    "set 01/ipaddr $ipaddr",
+                    "set 01/canonical $canonical"
+                    ],
+        onlyif  =&gt; "match *[ipaddr = '$ipaddr'] size == 0"
+      }
+
+      augeas { "update_$title":
+        context =&gt; '/files/etc/hosts',
+        changes =&gt; [
+                    "set *[ipaddr = '$ipaddr']/canonical $canonical"
+                    ],
+      }
+
+      Augeas["create_$title"] -&gt; Augeas["update_$title"]
+
+      # It would be great if I could loop this
+      if ($aliases == 'UNSET') {
+        augeas { "alias_$title":
+          context =&gt; '/files/etc/hosts',
+          changes =&gt; [
+                      "rm *[ipaddr = '$ipaddr']/alias[1]"
+                      ],
+        }
+      }
+      else {
+        augeas { "alias_$title":
+          context =&gt; '/files/etc/hosts',
+          changes =&gt; [
+                      "set *[ipaddr = '$ipaddr']/alias[1] '$alias'"
+                      ],
+        }
+      }
+      Augeas["update_$title"] -&gt; Augeas["alias_$title"]
+    }
+}
+</pre>
+
+<p>
+There are a couple of known issues. First, you can't unset an
+entry. If you add a host with this and then decide that you no longer
+want it there, you can't take it out. I don't think it would hard to
+add that feature but I haven't.
+</p>
+
+<p>
+Second, the define only lets you set the first alias. Augeas allows
+for multiple aliases and I could pass an array to the define but I
+don't know how to loop through that list.
+</p>
+
+<p>
+Anyway, here's how you use the define within a node or class
+definition.
+</p>
+
+<pre class="example">
+include hosts
+hosts::entry { 'san':
+  ipaddr    =&gt; '192.168.1.5',
+  canonical =&gt; 'san.example',
+  aliases   =&gt; 'san'
+}
+</pre>
+
+<p>
+You can use as many <code>hosts::entry</code> blocks as you want.
+</p>

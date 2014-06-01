@@ -1,0 +1,451 @@
+---
+layout: post
+title: FreeBSD AutoUpgrades
+date: 2005-04-06 13:33
+comments: true
+categories: [freebsd]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-04-06 Wed 13:33]</span></span></i>
+</p>
+
+<p>
+Updating a FreeBSD box is fairly simple but it can still be a pain when you
+have lots of them to upgrade. I have put together this little tutorial as an
+"It works for me" example. There may be better ways of doing this.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Building Machine</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The first thing you will need is a building machine. This box will download
+and build the kernel, userland apps and libraries for every machine. Once
+built, we'll share them via NFS to the other boxes.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Getting Updates</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+You will need to have installed the system source before hand. If you haven't,
+you can use sysinstall to install the source package. You all also need cvsup
+to fetch the updated source. (It's in the ports collections as net/cvsup and
+net/cvsup-without-gui.) The appendix A of the handbook has instructions on
+configuring cvsup.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">cd</span> /usr/src
+make update
+</pre>
+</div>
+</div>
+
+<div id="outline-container-2-1" class="outline-3">
+<h3 id="sec-2-1"><span class="section-number-3">2.1</span> Building World</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+Once the update has finished you can start building. We'll start by building
+the userland.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">make buildworld
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-2-2" class="outline-3">
+<h3 id="sec-2-2"><span class="section-number-3">2.2</span> Building the Kernel</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+Let's take a minute before we build the kernel and talk about how we deal with
+handling different kernels for different boxes. At some point in your career
+you'll decide that you need a custom kernel for one or more of your servers.
+This is fine. The handbook suggests using a custom kernel configuration for
+each box. That will work but it becomes impractical if you have lots of boxes.
+In most cases, the kernel configs will be the same, or at least, very similar.
+If possible, try to factor out those common things into a standard kernel that
+you can use on many boxes. For example, I have a standard kernel for most of
+my boxes, a SMP kernel for my multi-proc boxes and a kernel for routers.
+</p>
+
+<p>
+You select the kernel you want on my setting KERNCONF in /etc/make.conf.
+</p>
+
+<pre class="example">
+KERNCONF=STANDARD
+</pre>
+
+<p>
+The builder machine needs to know which kernels to build so we'll put a list
+instead of just one like above. builder's kernel is the first one on the list.
+<b>Note:</b> Don't forget to build a GENERIC kernel.
+</p>
+
+<pre class="example">
+KERNCONF=STANDARD STANDARD-SMP ROUTER GENERIC
+</pre>
+
+<p>
+Once you're kernels are configured, it's time to build.
+</p>
+
+<pre class="example">
+make buildkernel
+</pre>
+</div>
+</div>
+<div id="outline-container-2-3" class="outline-3">
+<h3 id="sec-2-3"><span class="section-number-3">2.3</span> Exporting</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+Now that you've built your new version of FreeBSD, it's time to get them to
+your other boxes. The simple way is via NFS. Security Note: NFS has several
+security issues that are beyond the scope of this article. Make sure you take
+appropriate steps to secure your NFS exports.
+</p>
+
+<p>
+You'll need to export /usr/src and /usr/obj to the remote machines. Add /usr
+to /etc/exports.
+</p>
+
+<pre class="example">
+/usr -maproot=root -alldirs servers
+</pre>
+
+<p>
+<b>Note:</b> You can export /usr read-only for added security.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Client Servers</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Now that the building machine is done we can look at the client setup.
+</p>
+</div>
+
+<div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> Mounting</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+Let's add /usr/src and /usr/obj to /etc/fstab. This is not strictly required
+but can make life a little easier.
+</p>
+
+<pre class="example">
+builder:/usr/src /usr/src nfs rw 0 0
+builder:/usr/obj /usr/obj nfs rw 0 0
+</pre>
+
+<p>
+Now we can mount /usr/src with a simple mount /usr/src.
+</p>
+</div>
+</div>
+<div id="outline-container-3-2" class="outline-3">
+<h3 id="sec-3-2"><span class="section-number-3">3.2</span> Installing</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+I'm going to talk about the install process now so things are a little clearer
+later on. At this point, we can install the new world and kernel onto the
+client box from builder. The process is very simple.
+</p>
+
+<pre class="example">
+mount /usr/src &amp;&amp; mount /usr/obj
+cd /usr/src
+make installkernel installworld
+mergemaster
+cd
+umount /usr/src /usr/obj
+shutdown -r now "Applying system upgrade."
+</pre>
+
+<p>
+<b>Note:</b> Add <code>KERNCONF=YOUR_KERNEL</code> to <code>/etc/make.conf</code> if you are using a custom
+kernel.
+</p>
+
+<p>
+It seems pretty straight forward but there are two caveats: 1) installkernel
+doesn't work if <code>kern.securelevel &gt; 0</code> and 2) mergemaster is an interactive
+tool. We can get around 1) by setting <code>kern_securelevel_enable</code>"NO"= in <code>/etc/
+rc.conf</code> and rebooting 2) is a bit more interesting.
+</p>
+</div>
+
+<div id="outline-container-3-2-1" class="outline-4">
+<h4 id="sec-3-2-1"><span class="section-number-4">3.2.1</span> mergemaster Issues</h4>
+<div class="outline-text-4" id="text-3-2-1">
+<p>
+The problem with mergemaster is that it runs a comparison of your system
+configuration files and replaces those things that have changed while allowing
+you to merge the changes with your existing files. "How is this a problem?"
+you might ask. It's a problem because you're not there to do the merge. You
+can put mergemaster in automatic mode with the -a flag which "will leave all
+the files that differ from the installed versions in the temporary directory
+to be dealt with by hand." That's all well and good for any new files that are
+added but doesn't help when part of the upgrade involves a bug fix to one of
+the system rc files, for example.
+</p>
+
+<p>
+So, what do we do about it? Well, if you are staying within a single security
+branch, then you can probably get away with ignoring the changes that
+mergemaster finds. If you are upgrading to a newer release, 4.8 to 4.9, for
+example, or there is a security or bug fix in /etc then you should run
+mergemaster in interactive mode on each server. Note: There may be a way of
+dealing with those types of changes automatically but use caution. If you're
+not sure, then do it by hand.
+</p>
+</div>
+</div>
+<div id="outline-container-3-2-2" class="outline-4">
+<h4 id="sec-3-2-2"><span class="section-number-4">3.2.2</span> upgrade.sh</h4>
+<div class="outline-text-4" id="text-3-2-2">
+<p>
+To make upgrades easier, I wrote a little sh script that I call upgrade.sh.
+When run without arguments, it disables kern.securelevel in /etc/rc.conf, puts
+a short script in /usr/local/etc/rc.d and reboots the server. The rc script,
+called 000.upgrade.sh by default, will call upgrade.sh with one argument:
+install.
+</p>
+
+<p>
+When called with the install argument, upgrade.sh will:
+</p>
+
+<ul class="org-ul">
+<li>mount /usr/src and /usr/obj
+</li>
+<li>install the new world and kernel
+</li>
+<li>run mergemaster -a
+</li>
+<li>unmount /usr/src and /usr/obj
+</li>
+<li>re-enable kern.securelevel
+</li>
+<li>remove 000.upgrade.sh
+</li>
+<li>and, reboot the server.
+</li>
+</ul>
+
+<p>
+At the end, your server should be running the new version of FreeBSD, complete
+with your custom kernel.
+</p>
+</div>
+</div>
+<div id="outline-container-3-2-3" class="outline-4">
+<h4 id="sec-3-2-3"><span class="section-number-4">3.2.3</span> The autoroot User</h4>
+<div class="outline-text-4" id="text-3-2-3">
+<p>
+Now we're going to add a user, autoroot, and give it the permissions it needs
+to run upgrade.sh.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-3-3" class="outline-3">
+<h3 id="sec-3-3"><span class="section-number-3">3.3</span> Adding autoroot</h3>
+<div class="outline-text-3" id="text-3-3">
+<p>
+We need to be careful with autoroot because we are going to be giving it a bit
+of power that can be dangerous in the wrong person's hands. The first step to
+take to secure autoroot is to disable password logins. (This is done with the
+-w no option.) This will prevent anyone from logging in as autoroot without
+the DSA key.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">pw user add autoroot -m -c <span style="color: #ffa07a;">"Auto root"</span> -w no
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3-4" class="outline-3">
+<h3 id="sec-3-4"><span class="section-number-3">3.4</span> sudo</h3>
+<div class="outline-text-3" id="text-3-4">
+<p>
+We'll be using sudo to give autoroot the permissions it needs. (If don't have
+sudo installed already, you can install it from security/sudo in the ports
+collection.) The second step is to add autoroot to <code>/usr/local/etc/sudoers</code>.
+</p>
+
+<pre class="example">
+# Begin AUTOROOT setup
+User_Alias AUTOROOT_USERS = autoroot
+Cmnd_Alias AUTOROOT_CMDS = /home/autoroot/bin/
+Defaults:AUTOROOT_USERS !lecture
+AUTOROOT_USERS ALL = NOPASSWD: AUTOROOT_CMDS
+# End AUTOROOT setup
+</pre>
+
+<p>
+We're going to all autoroot to run any command in <code>/home/autoroot/bin/</code> as root.
+This will give us some flexability with the commands autoroot can run without
+having to edit sudoers. You can allow autoroot to run other commands by
+creating symlinks in <code>/home/autoroot/bin/</code>.
+</p>
+
+<p>
+I want to draw your attention to the <code>NOPASSWD</code> option. This is required because
+it's going to be hard for autoroot to enter a password each time sudo asks for
+it. Besides, autoroot doesn't have a password. :-) This is one of the reasons
+you want to be careful with autoroot because, if someone does log in as
+autoroot, they do not have to enter a password to run your scripts.
+</p>
+</div>
+</div>
+<div id="outline-container-3-5" class="outline-3">
+<h3 id="sec-3-5"><span class="section-number-3">3.5</span> .ssh/authorized_keys</h3>
+<div class="outline-text-3" id="text-3-5">
+<p>
+Finally, add your DSA key to <code>~autoroot/.ssh/authorized_keys</code> so that you can
+log in with your private key.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">cat id_dsa.pub &gt;&gt; /home/autoroot/.ssh/authorized_keys
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3-6" class="outline-3">
+<h3 id="sec-3-6"><span class="section-number-3">3.6</span> bin/upgrade.sh</h3>
+<div class="outline-text-3" id="text-3-6">
+<p>
+Upload the update.sh script into <code>~autoroot/bin/</code>. I'll show you an easy way to
+do this later.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">!/bin/</span><span style="color: #00ffff;">sh</span>
+
+<span style="color: #eedd82;">BUILDER</span>=192.168.1.1
+<span style="color: #eedd82;">RC_CONF</span>=/etc/rc.conf
+<span style="color: #eedd82;">RC_D</span>=/usr/local/etc/rc.d
+<span style="color: #eedd82;">RC_SCRIPT</span>=000.upgrade.sh
+
+<span style="color: #00ffff;">case</span> <span style="color: #ffa07a;">"$1"</span><span style="color: #00ffff;"> in</span>
+install)
+mount /usr/src || mount $<span style="color: #eedd82;">BUILDER</span>:/usr/src /usr/src
+mount /usr/obj || mount $<span style="color: #eedd82;">BUILDER</span>:/usr/obj /usr/obj
+
+<span style="color: #b0c4de;">cd</span> /usr/src
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"make installkernel installworld"</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"mergemaster -a"</span>
+
+<span style="color: #b0c4de;">cd</span>
+umount /usr/src
+umount /usr/obj
+
+sed <span style="color: #ffa07a;">'s/^kern_securelevel_enable="[Nn][Oo]"/kern_securelevel_enable="YES"/'</span>
+$<span style="color: #eedd82;">RC_CONF</span> &gt; $<span style="color: #eedd82;">RC_CONF</span>.new
+mv $<span style="color: #eedd82;">RC_CONF</span>.new $<span style="color: #eedd82;">RC_CONF</span>
+
+rm $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+shutdown -r now <span style="color: #ffa07a;">"Booting to new kernel."</span>
+;;
+*)
+sed <span style="color: #ffa07a;">'s/^kern_securelevel_enable="[Yy][Ee][Ss]"/kern_securelevel_enable="NO"/'</span>
+$<span style="color: #eedd82;">RC_CONF</span> &gt; $<span style="color: #eedd82;">RC_CONF</span>.new
+mv $<span style="color: #eedd82;">RC_CONF</span>.new $<span style="color: #eedd82;">RC_CONF</span>
+
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">'#!/bin/sh'</span> &gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">'echo " Upgrading"'</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">'case "$1" in'</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">'start)'</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">" $0 install"</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">" ;;"</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">'*) ;;'</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"esac"</span> &gt;&gt; $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+chmod +x $<span style="color: #eedd82;">RC_D</span>/$<span style="color: #eedd82;">RC_SCRIPT</span>
+
+shutdown -r now <span style="color: #ffa07a;">"Preparing for upgrade."</span>
+;;
+<span style="color: #00ffff;">esac</span>
+</pre>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Control Box</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Now that we're done with the servers, it's time to setup the control box. This
+is the box that you will be issuing the autoroot commands from. It can be any
+box that has ssh access to your servers. The builder server might be a good
+choice. It should not be a production server because you'll be opening quite a
+few ssh processes and it can bog down the box.
+</p>
+</div>
+
+<div id="outline-container-4-1" class="outline-3">
+<h3 id="sec-4-1"><span class="section-number-3">4.1</span> dcmd</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+I use dcmd to issue the autoroot commands on each client. You can get dcmd
+from SourceForge.
+</p>
+</div>
+</div>
+<div id="outline-container-4-2" class="outline-3">
+<h3 id="sec-4-2"><span class="section-number-3">4.2</span> dcmd.hosts</h3>
+<div class="outline-text-3" id="text-4-2">
+<p>
+This file contains the list of hosts to run the commands on and the user to
+them as. Each entry is formatted as <code>username@host</code>. We'll use the autoroot user
+that we setup earlier.
+</p>
+
+<pre class="example">
+autoroot@server1
+autoroot@server2
+...
+</pre>
+</div>
+</div>
+<div id="outline-container-4-3" class="outline-3">
+<h3 id="sec-4-3"><span class="section-number-3">4.3</span> Uploading upgrade.sh</h3>
+<div class="outline-text-3" id="text-4-3">
+<p>
+Now that dcmd is installed, let me show you an easy way to upload upgrade.sh.
+We can use dscp to upload the script to every server listed in dcmd.hosts. The
+<code>[]</code> will be replaced with the entries in dcmd.hosts.
+</p>
+
+<pre class="example">
+dscp upgrade.sh []:bin/
+</pre>
+</div>
+</div>
+<div id="outline-container-4-4" class="outline-3">
+<h3 id="sec-4-4"><span class="section-number-3">4.4</span> Performing the Upgrades</h3>
+<div class="outline-text-3" id="text-4-4">
+<p>
+From the control box, you can issue the upgrade command like so.
+</p>
+
+<pre class="example">
+dssh sudo bin/upgrade.sh
+</pre>
+</div>
+</div>
+</div>

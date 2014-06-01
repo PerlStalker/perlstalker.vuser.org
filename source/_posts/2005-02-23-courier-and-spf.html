@@ -1,0 +1,190 @@
+---
+layout: post
+title: Courier and SPF
+date: 2005-02-23 15:01
+comments: true
+categories: [courier, SPF]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-02-23 Wed 15:01]</span></span></i>
+</p>
+
+<p>
+SPF is a protocol to try to provide some defense against domain spoofing. You
+can turn on SPF checks in courier-mta by adding various things to <code>bofh</code>.
+</p>
+
+<p>
+You might want to begin by reading the SPF RFC and the Courier SPF docs.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Possible Keywords (descriptions from the RFC):</h2>
+<div class="outline-text-2" id="text-1">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col class="left"/>
+
+<col class="left"/>
+</colgroup>
+<tbody>
+<tr>
+<td class="left">"none"</td>
+<td class="left">A result of None means that no records were published by the domain. The checking software cannot ascertain if the client host is authorized or not.</td>
+</tr>
+
+<tr>
+<td class="left">"neutral"</td>
+<td class="left">A Neutral result MUST be treated exactly like a None result.</td>
+</tr>
+
+<tr>
+<td class="left">"pass"</td>
+<td class="left">A Pass result means that the client is authorized to inject mail with the given "Mail From" identity. Further policy checks, such as reputation, or black and/or white listing, can now proceed with confidence based on the "Mail From" identity.  A Fail result is an explicit statement that the client is not</td>
+</tr>
+
+<tr>
+<td class="left">"fail"</td>
+<td class="left">authorized to use the domain in the "Mail From" identity. The checking software can choose to mark the mail based on this, or to reject the mail outright.</td>
+</tr>
+
+<tr>
+<td class="left">"softfail"</td>
+<td class="left">A SoftFail result should be treated as somewhere between a Fail and a Neutral. This value is used by domains as an intermediate state during roll-out of publishing records. The domain believes the host isn't authorized but isn't willing to make that strong of a statement. Receiving software SHOULD NOT reject the message based on this result, but MAY subject the message to closer scrutiny.</td>
+</tr>
+
+<tr>
+<td class="left">"error"</td>
+<td class="left">indicates an error during lookup; an MTA SHOULD reject the message using a transient failure code, such as 450.</td>
+</tr>
+
+<tr>
+<td class="left">"unknown"</td>
+<td class="left">indicates incomplete processing: an MTA MUST proceed as if a domain did not publish SPF data.</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Courier Specific keywords:</h2>
+<div class="outline-text-2" id="text-2">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col class="left"/>
+
+<col class="left"/>
+</colgroup>
+<tbody>
+<tr>
+<td class="left">"off"</td>
+<td class="left">SPF verification disabled (default);</td>
+</tr>
+
+<tr>
+<td class="left">"all"</td>
+<td class="left">Turn all checks in <span class="underline">informational</span> mode (no mail is rejected)  Status is put into 'Received-SPF:' header.</td>
+</tr>
+
+<tr>
+<td class="left">"mailfromok"</td>
+<td class="left">Skip 'From:' check if MAILFROM passes. BOFHSPFFROM only.</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Courier will only accept for specified keywords and will reject all
+others.  Always include <code>pass,none</code> for checks.
+</p>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> The SPF Checks</h2>
+<div class="outline-text-2" id="text-3">
+</div><div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> Verify 'HELO' domain.</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+<b>Recommended:</b> <code>pass,none,softfail,neutral,unknown</code>
+</p>
+
+<pre class="example">
+opt BOFHSPFHELO=pass,none,softfail,neutral,unknown,error
+#opt BOFHSPFHELO=all
+</pre>
+</div>
+</div>
+<div id="outline-container-3-2" class="outline-3">
+<h3 id="sec-3-2"><span class="section-number-3">3.2</span> Verify return address from 'MAIL FROM' command</h3>
+<div class="outline-text-3" id="text-3-2">
+<pre class="example">
+#opt BOFHSPFMAILFROM=pass,none,softfail,neutral,unknown
+opt BOFHSPFMAILFROM=all
+</pre>
+</div>
+</div>
+<div id="outline-container-3-3" class="outline-3">
+<h3 id="sec-3-3"><span class="section-number-3">3.3</span> Verify 'From:' header</h3>
+<div class="outline-text-3" id="text-3-3">
+<p>
+One should not reject on BOFHSPFFROM failure. From the courier site:
+</p>
+
+<blockquote>
+<p>
+A conservative policy should not reject failed SPF checks from the
+From: header, because it can be counterproductive in some
+situations. This is because when a sender from a domain with a
+published SPF policy sends a message to a mailing list, the message
+goes through the mailing list processor's IP address, and it will fail
+the SPF check unless the domain SPF explicitly authorizes the mailing
+list processor's IP address.
+</p>
+</blockquote>
+
+<pre class="example">
+#opt BOFHSPFFROM=pass,none,softfail,neutral,unknown,mailfromok
+opt BOFHSPFFROM=all
+#opt BOFHSPFFROM=off
+</pre>
+</div>
+</div>
+<div id="outline-container-3-4" class="outline-3">
+<h3 id="sec-3-4"><span class="section-number-3">3.4</span> Other Options</h3>
+<div class="outline-text-3" id="text-3-4">
+<p>
+Which keywords (results) cause a permanent error (rather than a temp error)
+</p>
+
+<p>
+<b>Recommended:</b> fail,softfail (default)
+</p>
+
+<pre class="example">
+opt BOFHSPFHARDERROR=fail,softfail
+</pre>
+
+<p>
+Turn off SPF checks for hosts w/ RELAYCLIENT set
+</p>
+
+<pre class="example">
+opt BOFHSPFTRUSTME=1
+</pre>
+
+<p>
+Disables custom reject messages (provided by the DNS for the domain) <b>Note:</b>
+Turning this off has some security implications.
+</p>
+
+<pre class="example">
+opt BOFHSPFNOVERBOSE=1
+</pre>
+</div>
+</div>
+</div>

@@ -1,0 +1,109 @@
+---
+layout: post
+title: Installing Courier
+date: 2006-02-23 08:51
+comments: true
+categories: [courier, freebsd, gentoo]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2006-02-23 Thu 08:51]</span></span></i>
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> FreeBSD</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Install the following from ports:
+</p>
+</div>
+
+<div id="outline-container-1-1" class="outline-3">
+<h3 id="sec-1-1"><span class="section-number-3">1.1</span> mail/courier</h3>
+<div class="outline-text-3" id="text-1-1">
+<p>
+<b>Note:</b> Make sure you upgrade Perl before you build courier. This is so that 
+perlfilter can find perl modules installed later, e.g. <code>Courier::Filter</code>.
+</p>
+
+<p>
+Add to <code>/etc/make.conf</code>
+</p>
+
+<pre class="example">
+# For Courier
+WITH_GNUPG=yes
+WITH_ISPELL=yes
+WITH_LDAP2=no
+WITH_MYSQL=yes
+</pre>
+
+<p>
+Also, you need to make sure that courier is using Perl &gt; 5.6 and not the
+system perl. During the build, courier uses <code>/usr/bin/perl5</code>. This is the system
+perl. Here's the work around.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">mv /usr/bin/perl5 /usr/bin/perl5-system
+ln -s /usr/local/bin/perl5 /usr/bin/perl5
+</pre>
+</div>
+
+<p>
+It probably isn't kosher to leave <code>/usr/bin/perl5</code> pointing to the ports perl
+but I haven't had problems with it. If you're paranoid, you can do this:
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">rm /usr/bin/perl5
+mv /usr/bin/perl5-system /usr/bin/perl5
+</pre>
+</div>
+
+<p>
+After the install, you will be asked if you want to change <code>/etc/mail/
+mailers.conf</code>. Say yes.
+</p>
+</div>
+</div>
+<div id="outline-container-1-2" class="outline-3">
+<h3 id="sec-1-2"><span class="section-number-3">1.2</span> databases/mysql40-server</h3>
+<div class="outline-text-3" id="text-1-2">
+<p>
+We're going to use MySQL to store the user information.
+</p>
+</div>
+</div>
+<div id="outline-container-1-3" class="outline-3">
+<h3 id="sec-1-3"><span class="section-number-3">1.3</span> databases/p5-DBD-mysql</h3>
+<div class="outline-text-3" id="text-1-3">
+<p>
+Needed so SpamAssassin can talk to MySQL.
+</p>
+</div>
+</div>
+<div id="outline-container-1-4" class="outline-3">
+<h3 id="sec-1-4"><span class="section-number-3">1.4</span> /etc/rc.conf</h3>
+<div class="outline-text-3" id="text-1-4">
+<p>
+Disable all sendmail lines. (Courier will handle all of that.)
+</p>
+
+<pre class="example">
+courier_enable="YES"
+sendmail_enable="NONE"
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Gentoo</h2>
+<div class="outline-text-2" id="text-2">
+<pre class="example">
+USE="mysql ssl" emerge courier-authlib courier
+rc-update add courier default
+</pre>
+</div>
+</div>

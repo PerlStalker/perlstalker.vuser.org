@@ -1,0 +1,171 @@
+---
+layout: post
+title: Gentoo Kerberos5 HOWTO
+date: 2005-10-07 13:11
+comments: true
+categories: [gentoo, kerberos]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-10-07 Fri 13:11]</span></span></i>
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Install Kerberos 5</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Add kerberos to the USE flag in <code>/etc/make.conf</code>.
+</p>
+
+<pre class="example">
+USE="kerberos"
+</pre>
+
+<p>
+Then install everything:
+</p>
+
+<pre class="example">
+emerge -N world
+</pre>
+
+<ul class="org-ul">
+<li>Or -
+</li>
+</ul>
+
+<pre class="example">
+emerge mit-krb5
+</pre>
+
+<p>
+This will install the MIT kerberos 5 library which may be restricted under US
+export restrictions. The Heimdal krb5 implementation is free from those
+restrictions. You can install Heimdal by doing:
+</p>
+
+<pre class="example">
+emerge app-crypt/heimdal
+</pre>
+
+<p>
+Because the kerberos install will change libgssapi, you will need to run
+<code>revdep-rebuild</code> to fix any apps that you build prior to install krb5. <b>Note:</b>
+If you install <code>heimdal</code>, you may need to rebuild OpenSSH to enable krb5
+support.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Configure Kerberos</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+<b>Updated 2010-09-26:</b> I just realized that I never put in the example configs.
+Oops. Sorry about that.
+</p>
+
+<p>
+Edit /etc/krb5.conf
+</p>
+
+<p>
+sample krb5.conf here
+</p>
+
+<p>
+Edit /etc/kdc.conf
+</p>
+
+<p>
+sample kdc.conf here
+</p>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Initialize the Database</h2>
+<div class="outline-text-2" id="text-3">
+<div class="org-src-container">
+
+<pre class="src src-sh">mkdir /etc/krb5kdc
+kdb5_util create -r REALM -s
+</pre>
+</div>
+
+<p>
+You will be prompted for the Master Password. This will be stored as the
+principle <code>K/M@REALM</code>.
+</p>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Add Administrators</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Now we need to add admin users to <code>/etc/krb5kdc/kadm5.acl</code>.
+</p>
+
+<p>
+sample kadm5.acl here
+</p>
+
+<pre class="example">
+bash# kadmin.local
+kadmin.local: addprinc admin/admin@REALM
+</pre>
+
+<p>
+Skip keytab
+</p>
+</div>
+</div>
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Starting the Servers</h2>
+<div class="outline-text-2" id="text-5">
+<div class="org-src-container">
+
+<pre class="src src-sh">/etc/init.d/mit-krb5kadmind start
+/etc/init.d/mit-krb5kdc start
+</pre>
+</div>
+
+<p>
+It can sometimes take a while to start kadmind. Be patient.
+</p>
+</div>
+</div>
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Setup PAM</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+PAM is used by many services to authenticate. It would be very convenient if
+it talked to the KDC too. So, let's enable Kerberos in PAM. Note: According to
+the pam_krb5 docs, it only works with MIT Kerberos 5.
+</p>
+
+<pre class="example">
+emerge pam_krb5
+</pre>
+
+<p>
+Now edit <code>/etc/pam.d/system-auth</code>
+</p>
+
+<pre class="example">
+auth       required     pam_env.so
+auth       sufficient   pam_unix.so likeauth nullok
+auth       sufficient   pam_krb5.so try_first_pass
+auth       required     pam_deny.so
+
+account    required     pam_krb5.so
+account    required     pam_unix.so
+
+password   required     pam_cracklib.so retry=3
+password   sufficient   pam_krb5.so use_authtok
+password   sufficient   pam_unix.so nullok md5 shadow use_authtok
+password   required     pam_deny.so
+
+session    required     pam_limits.so
+session    required     pam_krb5.so
+session    required     pam_unix.so
+</pre>
+</div>
+</div>

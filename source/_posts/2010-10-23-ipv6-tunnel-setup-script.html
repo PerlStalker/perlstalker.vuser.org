@@ -1,0 +1,173 @@
+---
+layout: post
+title: IPv6 Tunnel Setup Script
+date: 2010-10-23 20:57
+comments: true
+categories: [IPv6, linux, tunnel]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2010-10-23 Sat 20:57]</span></span></i>
+</p>
+
+<p>
+I recently set up a IPv6 tunnel with Hurricane Electric's free <a href="http://www.tunnelbroker.net/">tunnel broker</a>.
+Once your tunnel is created, HE provides instructions for setting the tunnel
+up on your system. Easy peasy.
+</p>
+
+<p>
+I decided that I wanted to setup a tunnel on my laptop. That's a little
+tougher since my laptop will be getting a dynamic IP from the various wireless
+networks I connect to. Even more fun, since most wifi networks I connect to in
+hotels and airports, etc. give me a NAT'd address, I won't know the public IP
+of the network. Fortunately, there's an easy solution.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Background</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+There are a couple of issues when setting up a tunnel. First of all, HE
+requires you set your public IP address in the tunnel config on their site.
+Second, you need to know the IP address you're assigned by the DHCP server of
+the wifi network you connect to. Both of these are easy to do by hand but
+that's not very convenient. So, I wrote a little shell script to do it all for
+me.
+</p>
+
+<p>
+In the sections below, I'm going to show you code snippets to do each piece
+then I'll post the full script at the end.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Set the Client IPv4 Address</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+The first thing you need to do is set the Client IPv4 address. The good news
+is that HE provides <a href="https://ipv4.tunnelbroker.net/ipv4_end.php">a nice URL</a> that you can use to set your IP automatically.
+That page also describes the parameters that you need to pass.
+</p>
+
+<p>
+A couple of things to note. First, as that page says, the <code>user_id</code> is not your
+user name. It's an MD5 looking string that is available on the main tunnel
+broker page. Second, make sure you remember the <code>-n</code> on the echo line to
+generate the MD5 sum of your password. If you forget it, the sum will be of
+your password plus a new line. Obviously, that's not the same thing. Third, HE
+is using a self-signed certificate. You need to add the <code>-k</code> flag to curl to
+skip the certificate validation. Finally, remember that the tunnel ID is the
+global tunnel ID found at the top of the details page.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #eedd82;">UPDATE_PAGE</span>=<span style="color: #ffa07a;">"https://ipv4.tunnelbroker.net/ipv4_end.php"</span>
+<span style="color: #eedd82;">IPV4ADDR</span>=AUTO
+<span style="color: #eedd82;">USERID</span>=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+<span style="color: #eedd82;">MD5PASS</span>=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+<span style="color: #eedd82;">TUNNEL_ID</span>=2
+
+curl -k $<span style="color: #eedd82;">UPDATE_PAGE</span>?<span style="color: #eedd82;">ipv4b</span>=$<span style="color: #eedd82;">IPV4ADDR</span><span style="color: #ffa07a;">\&amp;</span><span style="color: #eedd82;">pass</span>=$<span style="color: #eedd82;">MD5PASS</span><span style="color: #ffa07a;">\&amp;</span><span style="color: #eedd82;">user_id</span>=$<span style="color: #eedd82;">USERID</span><span style="color: #ffa07a;">\&amp;</span><span style="color: #eedd82;">tunnel_id</span>=$<span style="color: #eedd82;">TUNNEL_ID</span>
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Set up the Link</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Be sure to have the tunnel configuration page open. You'll need some of the
+information there. The basic script looks something like the script below.
+Many distros, including Ubuntu, already have the ipv6 module loaded. If that's
+the case, you can leave out the modprobe line.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">modprobe ipv6
+ip tunnel add he-ipv6 mode sit remote $<span style="color: #eedd82;">REMOTE</span> local $<span style="color: #eedd82;">LOCAL</span> ttl 255
+ip link set he-ipv6 up
+ip addr add $<span style="color: #eedd82;">CLIENTIPV6</span> dev he-ipv6
+ip route add ::/0 dev he-ipv6
+ip -f inet6 addr
+</pre>
+</div>
+
+<p>
+<code>$REMOTE</code> is the <i>Server IPv4 address</i> from the configuration page and
+<code>$CLIENTIPV6</code> is the <i>Client IPv6 address</i>. <code>$LOCAL</code> is the IPv4 address of
+your interface.  We'll get to that next.
+</p>
+
+<p>
+The first thing you'll need is the name of your wireless interface. In my
+case, it's <code>wlan0</code>. Once you have that, you can get the address from ifconfig. 
+<b>Note:</b> If you have multiple addresses configured on your interface for some
+reason, this may not give you what you expect.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #eedd82;">IFACE</span>=wlan0
+
+<span style="color: #eedd82;">LOCAL</span>=<span style="color: #fa8072;">`ifconfig $IFACE | grep 'inet addr' | awk '/inet addr/{ print $2; }' |</span>
+<span style="color: #fa8072;">awk -F : '{ print $2; }'`</span>
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> he-ipv6.sh</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+And that's it. Now, it's time to wrap all that in a script to make it easy to
+bring up the tunnel and tear it down again. Be sure to fill in appropriate
+information from your tunnel page. You can start the tunnel by running
+he-ipv6.sh start and shut it down with he-ipv6.sh stop.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">!/bin/</span><span style="color: #00ffff;">bash</span>
+
+<span style="color: #eedd82;">IFACE</span>=wlan0
+
+<span style="color: #eedd82;">UPDATE_PAGE</span>=<span style="color: #ffa07a;">"https://ipv4.tunnelbroker.net/ipv4_end.php"</span>
+<span style="color: #eedd82;">IPV4ADDR</span>=AUTO
+<span style="color: #eedd82;">USERID</span>=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+<span style="color: #eedd82;">MD5PASS</span>=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+<span style="color: #eedd82;">TUNNEL_ID</span>=2
+
+<span style="color: #ff7f24;"># </span><span style="color: #ff7f24;">Server IPv4 address</span>
+<span style="color: #eedd82;">REMOTE</span>=a.a.a.a
+<span style="color: #eedd82;">LOCAL</span>=<span style="color: #fa8072;">`ifconfig $IFACE | grep 'inet addr' | awk '/inet addr/{ print $2; }' |</span>
+<span style="color: #fa8072;">awk -F : '{ print $2; }'`</span>
+
+<span style="color: #ff7f24;"># </span><span style="color: #ff7f24;">Server IPv6 address</span>
+<span style="color: #eedd82;">SERVERIPV6</span>=<span style="color: #ffa07a;">"2001:...::1/64"</span>
+
+<span style="color: #ff7f24;"># </span><span style="color: #ff7f24;">Client IPv6 address</span>
+<span style="color: #eedd82;">CLIENTIPV6</span>=<span style="color: #ffa07a;">"2001:...::2/64"</span>
+
+<span style="color: #00ffff;">case</span> $<span style="color: #eedd82;">1</span><span style="color: #00ffff;"> in</span>
+    start)
+        curl -k $<span style="color: #eedd82;">UPDATE_PAGE</span>?<span style="color: #eedd82;">ipv4b</span>=$<span style="color: #eedd82;">IPV4ADDR</span><span style="color: #ffa07a;">\&amp;</span><span style="color: #eedd82;">pass</span>=$<span style="color: #eedd82;">MD5PASS</span><span style="color: #ffa07a;">\&amp;</span><span style="color: #eedd82;">user_id</span>=$<span style="color: #eedd82;">USERID</span><span style="color: #ffa07a;">\&amp;</span>
+<span style="color: #eedd82;">tunnel_id</span>=$<span style="color: #eedd82;">TUNNEL_ID</span>
+        ip tunnel add he-ipv6 mode sit remote $<span style="color: #eedd82;">REMOTE</span> local $<span style="color: #eedd82;">LOCAL</span> ttl 255
+        ip link set he-ipv6 up
+        ip addr add $<span style="color: #eedd82;">CLIENTIPV6</span> dev he-ipv6
+        ip route add ::/0 dev he-ipv6
+        ;;
+    stop)
+        ip route del ::/0 dev he-ipv6
+        ip addr del $<span style="color: #eedd82;">CLIENTIPV6</span> dev he-ipv6
+        ip link set he-ipv6 down
+        ip tunnel del he-ipv6
+        ;;
+<span style="color: #00ffff;">esac</span>
+</pre>
+</div>
+</div>
+</div>

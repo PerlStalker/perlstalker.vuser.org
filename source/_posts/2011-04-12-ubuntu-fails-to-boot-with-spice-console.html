@@ -1,0 +1,46 @@
+---
+layout: post
+title: Ubuntu Fails to Boot with Spice Console
+date: 2011-04-12 15:44
+comments: true
+categories: [grub, kvm, spice, ubuntu]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-04-12 Tue 15:44]</span></span></i>
+</p>
+
+<p>
+I needed to roll a couple of debs for my Ubuntu servers at work. Since I run
+Gentoo on my desktop, I rolled a 64-bit Lucid VM. Unfortunately, after the
+install finished, I got the following error on the console and the VM wouldn't
+boot.
+</p>
+
+<pre class="example">
+error: no suitable mode found
+error: unknown command 'terminal'
+</pre>
+
+<p>
+I figured the problem had something to do with the interaction with spice
+console (which I'm using instead of VNC). Fortunately, the fix is pretty easy.
+</p>
+
+<ol class="org-ol">
+<li>Boot the install CD and go into Recovery mode.
+</li>
+<li>Drop into a shell on the system.
+</li>
+<li>Make sure /boot is mounted in case it's on a separate partition.
+</li>
+<li>Edit <code>/etc/default/grub</code> and set <code>GRUB_TERMINAL=console</code>
+</li>
+<li>Run <code>/usr/sbin/grub-mkconfig &gt; /boot/grub/grub.cfg</code> to update <code>/boot/grub/grub.cfg</code>
+</li>
+<li>Exit the recovery shell and reboot
+</li>
+</ol>
+
+<p>
+Poof! The VM now boots and I can log in.
+</p>

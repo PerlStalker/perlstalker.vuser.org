@@ -1,0 +1,86 @@
+---
+layout: post
+title: gPodder and EMMS
+date: 2012-03-28 13:58
+comments: true
+categories: [emacs, gpodder, emms]
+---
+<p>
+I use <a href="http://gpodder.org/">gPodder</a> to pull podcasts for all my listening pleasure at
+work. I had been using gnome-mplayer to listen to them but after a
+recent re-install, gnome-mplayer started to hanging every when I pause
+the playback. Gmplayer works fine so I know that mplayer, by itself,
+is not the problem but that doesn't have a systray icon to make it easy
+to click and pause playback.
+</p>
+
+<p>
+Since I'm so frequently using emacs, I thought to myself "I wonder if
+I can do this in emacs?" Of course, I can. Enter <a href="http://www.gnu.org/software/emms/">emms</a>.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> emms Configuration</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Based on a little bit of research, I decided to use mplayer as the
+backend. The setup is pretty easy. This is what I'm using based on
+<a href="http://dryice.name/blog/emacs/emms-using-mplayer/">this blog post</a>.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-emacs-lisp"><span style="color: #ff7f24;">;; </span><span style="color: #ff7f24;">emms</span>
+
+(<span style="color: #00ffff;">require</span> '<span style="color: #7fffd4;">emms-player-mplayer</span>)
+(<span style="color: #00ffff;">require</span> '<span style="color: #7fffd4;">emms-source-file</span>)
+(<span style="color: #00ffff;">require</span> '<span style="color: #7fffd4;">emms-source-playlist</span>)
+
+(setq emms-player-mplayer-command-name <span style="color: #ffa07a;">"mplayer"</span>
+      emms-player-mplayer-parameters '(<span style="color: #ffa07a;">"-slave"</span>)
+      emms-player-mpg321-command-name <span style="color: #ffa07a;">"mpg123"</span>
+      emms-player-list
+      '(emms-player-mplayer
+        emms-player-mplayer-playlist
+        emms-player-mpg321
+        emms-player-ogg123))
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> gPodder Configuration</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Now that I can listen to the music via emacs, I need to tell gPodder
+how to feed the podcasts into emms. It's simple to add them to
+playlist from outside of emacs with this:
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">emacsclient --server-file=work --eval <span style="color: #ffa07a;">'(emms-add-file "TD140.mp3")'</span>
+</pre>
+</div>
+
+<p>
+In <code>$HOME/.config/gpodder/gpodder.conf</code>, you can set the <code>player</code>
+setting. gPodder replaces the <code>%U</code> with the file name. &#x2026; In
+theory. In practice, gPodder only replaces <code>%U</code> if it's at the end of
+the line. That means I needed to write a quick wrapper.
+</p>
+
+<p>
+{% include_code lang:perl add2emms.pl %}
+</p>
+
+<p>
+I run emacs in daemon mode (with TCP). If you don't, you'll want to
+change the <code>$emacs</code> variable.
+</p>
+
+<p>
+And you're done. Happy listening.
+</p>
+</div>
+</div>

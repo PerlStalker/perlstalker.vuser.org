@@ -1,0 +1,159 @@
+---
+layout: post
+title: Logitech Marble Mouse and X.org
+date: 2006-08-24 08:07
+comments: true
+categories: [X.org]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2006-08-24 Thu 08:07]</span></span></i>
+</p>
+
+<p>
+I recently got a Logitech Marble Mouse at work. It's a nice little trackball
+but it has a minor problem. There is no button 2. "What is button 2?" you
+might ask. Button 2 is the middle mouse button. On your average scroll mouse,
+this is the button that is triggered when you click the scroll wheel. "So?"
+you might then ask. So, the middle mouse button is used in X to paste stuff
+from the X clip board. It's a handy little feature and one that I don't want
+to give up. So, here's what I did to make this trackball usable for me. Keep
+in mind, I use my trackball left-handed so all you poor righties will just
+have to adjust.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> The Plan</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The Marble Mouse comes with four buttons. There are two large ones and two
+smaller ones. The smaller one will, by default, act as a scroll wheel. That's
+a nice feature but there are even better ways of handling this in X.org.
+(These docs will probably work with XFree86, too, but I haven't tested them.)
+I wanted to use the small button on the right as my middle button. (Remember,
+I'm flying lefty.) The small button on the left, is going to trigger the
+scroll features.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> .xmodmap</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+<code>.xmodmap</code> is used to by X.org to change your local keymappings. It can also
+change the mappings for your mouse buttons using the pointer command. Here's
+what mine looks like:
+</p>
+
+<pre class="example">
+pointer = 3 5 1 4 2 6 7
+</pre>
+
+<p>
+Let's go through this together, shall we? First, you'll notice that the
+numbers are out of order. The positions of the numbers correspond to the
+default button positions. If you don't set pointer, the default would be the
+same as saying
+</p>
+
+<pre class="example">
+pointer = 1 2 3 4 5 6 7
+</pre>
+
+<p>
+The buttons on the Marble Mouse are numbered this way by default:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col class="left"/>
+
+<col class="right"/>
+
+<col class="right"/>
+</colgroup>
+<tbody>
+<tr>
+<td class="left">&#xa0;</td>
+<td class="right">Left</td>
+<td class="right">Right</td>
+</tr>
+
+<tr>
+<td class="left">Big</td>
+<td class="right">1</td>
+<td class="right">3</td>
+</tr>
+
+<tr>
+<td class="left">Small</td>
+<td class="right">4</td>
+<td class="right">5</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+The first thing I did was swap buttons 1 and 3. This reverses the main
+buttons. This is your standard swap for lefties. Next, I swapped button 5 for
+my non-existant button 2. This gives me the middle-click that I want.
+Everything else was left the same. You can enable your changes by running
+<code>xmodmap ~/.xmodmap</code>. I recommend adding that command to your <code>.xsession</code>
+file so that it's run when you log into X.
+</p>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> X.org Configuration</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Now, I didn't really want to lose the scroll features, so I made some changes
+to <code>xorg.conf</code> so that I can get those back and, in fact, get a few more
+features. Before you start screwing with your X config, you want to do is
+create a backup of <code>/etc/X11/xorg.conf</code> so that you have a working config to
+go back to. Go ahead and do that. I'll wait. &#x2026; Okay, now that you've
+finished your backup, we can proceed. Here are the relevent sections of my
+<code>xorg.conf</code>.
+</p>
+
+<pre class="example">
+Section "ServerLayout"
+...
+InputDevice    "MarbleMouse" "CorePointer"
+...
+EndSection
+...
+Section "InputDevice"
+Identifier  "MarbleMouse"
+Driver      "mouse"
+        Option "CorePointer"
+        Option "Device" "/dev/input/mice"
+        Option "Protocol" "ExplorerPS/2"
+        Option "Buttons" "7"
+        Option "EmulateWheel" "1"
+        Option "EmulateWheelButton" "4"
+        Option "XAxisMapping" "6 7"
+        Option "YAxisMapping" "4 2"
+EndSection
+</pre>
+
+<p>
+In the <code>ServerLayout</code> section for your system, you need to add the Marble Mouse
+to your config to verify that it gets used. Then create a new <code>InputDevice</code>
+section for the MM. Many of these options are described in this post to the
+Ubuntu forums at <a href="http://www.ubuntuforums.org/archive/index.php/t-77005.html">http://www.ubuntuforums.org/archive/index.php/t-77005.html</a>.
+The <code>EmulateWheel</code> switch tells X that we want to enable the wheel features when
+a button is pressed. <code>EmulateWheelButton</code> tells X that we want to use button 4
+(the small, left button) for that. The important changes are to the 
+<code>YAxisMapping</code> line. Normally, that is set to "4 5" but since we swapped those
+in <code>.xmodmap</code> we need to swap the buttons, we need to set that to "4 2".
+Restart X for those changes to take effect.
+</p>
+
+<p>
+Now, when you log back into X, you can hold down the small, left button and
+move the ball, your pages will scroll up and down and to the sides.
+</p>
+</div>
+</div>

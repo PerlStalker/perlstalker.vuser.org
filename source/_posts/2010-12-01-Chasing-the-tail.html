@@ -1,0 +1,48 @@
+---
+layout: post
+title: Chasing the "tail"
+date: 2010-12-01 09:51
+comments: true
+categories: [powershell]
+---
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2010-12-01 Wed 09:51]</span></span></i>
+</p>
+
+<p>
+While trying to get System Center Configuration Manager to install a package
+on a new server, I rediscovered why I hate working in Windows and why I like
+PowerShell. I wanted to check the end of a series of log files to see what was
+going on. Unfortunately, Windows has no obvious analog to the unix tail
+command. Fortunately, my friend <a href="http://jon.netdork.net/">Jon Angliss</a> had <a href="https://twitter.com/#!/j_angliss/status/9775766279553024">most of a solution</a>.
+</p>
+
+<pre class="example">
+Get-Content &lt;filename&gt; -wait
+</pre>
+
+<p>
+That's close to what I want but not quite. What that does is almost the same
+as <code>tail -f &lt;filename&gt;</code> except it prints the entire file first. What I wanted
+was to print the last ten lines of the file. It turns out, there's a way to do
+it but it's a little weird.
+</p>
+
+<pre class="example">
+(Get-Content &lt;filename&gt;)[-10..-1]
+</pre>
+
+<p>
+<code>Get-Content</code> can return an array by wrapping it in parentheses and you can work
+with is using perl-ish array slices. Sticking <code>[-10..-1]</code> on the end says that
+you want lines -10 to -1, i.e. the last ten lines. <b>Note:</b> Don't use zero as the
+last index or it will slap the <i>first</i> line of the file at the end of the
+output.
+</p>
+
+<p>
+So, there it is. A convoluted way of doing something that should be
+easy. See <code>Get-Help Get-Content</code> for the documentations and <code>Get-Help
+Get-Content -examples</code> for examples.
+</p>

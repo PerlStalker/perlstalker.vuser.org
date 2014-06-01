@@ -1,0 +1,82 @@
+---
+layout: post
+title: "Life with KVM: Live Migration"
+date: 2008-09-20 18:20
+comments: true
+categories: [kvm, virtualization]
+---
+<p>
+<i>Originally posted on <span class="timestamp-wrapper"><span class="timestamp">[2008-09-20 Sat 18:20]</span></span></i>
+</p>
+
+<p>
+I thought I would take a few minutes and share some of my experiences with
+Linux KVM. In this first post, I'd like to share some things about live
+migration.
+</p>
+
+<p>
+First, live migration works great &#x2026; if you have the right version of KVM.
+Kvm-69, which is included with Ubuntu Hardy, is broken. Starting with kvm-70,
+live migration works again and works very well. You hardly even notice at all
+if you're logged into the machine remotely while it migrates. Unfortunately,
+kvm-75 broke live migration again. Keep an eye on the changelog for a note
+that it's fixed before trying kvm-75.
+</p>
+
+<p>
+Setting your servers up for live migration is trivial. I was very surprised at
+how easy it was. All you need to do use share ssh keys between the user
+running your VM on each server. Then, from your running VM, use ctrl-alt-2 to
+switch to the qemu monitor then run migrate ssh://other-vm-host. In a few
+moments, the command will return and the machine will be migrated. But,
+there's a chance here to scare yourself here. If you jump back to the console
+(ctrl-alt-1), you'll still see your VM but it will seem frozen. It actually is
+&#x2026; on the original VM. If you log into the console from the other VM host,
+your console should be working as expected. Go back to the original console
+and run quit to end the session for the now migrated VM.
+</p>
+
+<p>
+See? Simple.
+</p>
+
+<p>
+If you don't want to wait for migration to complete, you can use the -d flag (
+migrate -d ssh://other-vm-host) to tell the qemu monitor not to wait. You can
+watch the migration process with the qemu monitor command info migration. You
+can even cancel the migration if you decide that you really didn't want to
+send your VM to another box.
+</p>
+
+<p>
+A couple of things of note. First, the docs recommend that you use the VNC
+console for machines that you plan on migrating. Second, I have seem some very
+poor behavior of the mouse pointer on Windows guests after migration.
+Basically, the guest's mouse does not track properly with the VNC pointer. I
+haven't yet tried setting the virtual console size manually to see if that
+makes any difference. If you try it, let me know how it works out for you.
+</p>
+
+<p>
+<b>Update (12 May 2009):</b> ssh migration has been removed in newer versions of KVM
+as part of the merge with qemu. (I don't know the exact version. If someone
+knows, please drop a comment below.) This removed the one really easy way of
+migrating VMs between hosts. You can still migrate over SSH bit it requires a
+lot more work. From the qemu monitor you do something like this: migrate
+"exec:ssh remote qemu-system-x86_64 [all vm options] -incoming 'exec:cat'"
+</p>
+
+<p>
+<b>Update (24 June 2009):</b> I have confirmed that the migrate command above works
+with kvm-85. I suggest that you create a script to print out your kvm options
+and then you can do something like this: monitor "exec:ssh remote `get-kvm-cmd
+vmname` -incoming 'exec:cat'"
+</p>
+
+<p>
+According to aligouri in #kvm on Freenode, nobody used migrate ssh: and I was
+the first person to complain about it's removal. You may want to take a look
+at <a href="http://libvirt.org/">libvirt</a> (which now supports live migration) if you want easy to use live
+migration.
+</p>

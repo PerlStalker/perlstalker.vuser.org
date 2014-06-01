@@ -1,0 +1,236 @@
+---
+layout: post
+title: Using RBLs With Courier
+date: 2005-01-22 13:36
+comments: true
+categories: [courier, rbl]
+---
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-01-22 Sat 13:36]</span></span></i>
+</p>
+
+<p>
+Real-time Blacklists (RBLs) are commonly used to block mail from known
+spammers or servers that can be used to send spam (open relays and the
+like).
+</p>
+
+<p>
+I found a lot of good info on setting up rbldnsd here.
+</p>
+
+<p>
+I use Bind 9 on my DNS servers so that I can run rbldnsd on the same
+IP as bind. Note: Setting up and configuring Bind 9 for basic DNS is
+beyond the scope of this document.
+</p>
+
+<p>
+Strictly speaking, you do not need to setup rbldnsd (or Bind fot that
+matter) since courier can do the lookups directly from the RBL
+privider. If you handle a lot of mail, however, you will want to use a
+local copy of the RBL to speed up query responses and to keep from
+DoSing the RBL provider's servers.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Needed Ports</h2>
+<div class="outline-text-2" id="text-1">
+<ul class="org-ul">
+<li>Bind 9 - dns/bind9
+</li>
+<li>rbldnsd - dns/rbldnsd
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Configuration</h2>
+<div class="outline-text-2" id="text-2">
+</div><div id="outline-container-2-1" class="outline-3">
+<h3 id="sec-2-1"><span class="section-number-3">2.1</span> Courier</h3>
+<div class="outline-text-3" id="text-2-1">
+</div><div id="outline-container-2-1-1" class="outline-4">
+<h4 id="sec-2-1-1"><span class="section-number-4">2.1.1</span> esmtpd</h4>
+<div class="outline-text-4" id="text-2-1-1">
+<p>
+You can use RBLs in a couple of ways in courier. The first is to block them outright by setting the BLOCK environment variable, the other is to set an environment variable (e.g. BLOCK2) that maildrop (or another MDA) can use to make choices with. See couriertcpd(8) for (many) more details.
+</p>
+
+<pre class="example">
+BLACKLISTS="-block=list.dsbl.org,BLOCK -block=sbl.spamhaus.org,BLOCK"
+</pre>
+
+<p>
+<b>Note:</b> Courier will not use other blacklists that set the same
+ environment variable if the first one hits. Put your largest (and
+ most likely to hit) blacklist first to save some processing time when
+ the server is blacklisted.
+</p>
+</div>
+</div>
+<div id="outline-container-2-1-2" class="outline-4">
+<h4 id="sec-2-1-2"><span class="section-number-4">2.1.2</span> maildroprc</h4>
+<div class="outline-text-4" id="text-2-1-2">
+<p>
+If you are using an environment variable like BLOCK2, you can use a
+global mail drop filter like this to quarantine messages that hit the
+RBL. <b>Note:</b> This is untested.
+</p>
+
+<pre class="example">
+import BLOCK2 
+
+if ($BLOCK2)
+{
+         `test -d "./Maildir/.Spam/"`
+         if ($RETURNCODE != 0)
+         {
+                 # If not, copy one from the pre-existing skel directory.
+                 `cp -Rp /usr/local/etc/courier/skel/Maildir/.Spam ./Maildir/`
+         }
+         to "./Maildir/.Spam/."
+}
+</pre>
+
+<p>
+Instead of moving the message to a Spam folder, you could use an
+xfilter to add a header to the message that the use could then filter
+on. Here you can take advantage of the fact that courier can set your
+variable to the value of the TXT record, A record or admin defined
+message for the blacklisted address.
+</p>
+
+<pre class="example">
+import BLOCK2
+
+if ($BLOCK2)
+{
+xfilter "reformail -a'X-Blacklisted: $BLOCK2'"
+}
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-2-2" class="outline-3">
+<h3 id="sec-2-2"><span class="section-number-3">2.2</span> rbldnsd</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+rbldnsd does not use any configuration files beyond the zone
+files. Everything else is read from the command line. You can add the
+flags to /etc/make.conf or to /usr/local/etc/rc.d/rbldnsd.sh. I prefer
+the former.
+</p>
+</div>
+
+<div id="outline-container-2-2-1" class="outline-4">
+<h4 id="sec-2-2-1"><span class="section-number-4">2.2.1</span> /etc/rc.conf</h4>
+<div class="outline-text-4" id="text-2-2-1">
+<pre class="example">
+rbldnsd_enable="YES"
+rbldnsd_flags="-r /usr/local/etc/rbldnsd -f -b 127.0.0.1/1053"
+rbldnsd_flags="$rbldnsd_flags list.dsbl.org:ip4set:list.dsbl.org"
+rbldnsd_flags="$rbldnsd_flags cbl.abuseat.org:ip4set:cbl.abuseat.org"
+</pre>
+
+<p>
+<b>Note:</b> I am running rbldnsd on port 1053 on the localhost address
+ 127.0.0.1. Feel free to adjust those values for your own setup. You
+ can listen on multiple addresses by secifying -b address/port again.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-2-3" class="outline-3">
+<h3 id="sec-2-3"><span class="section-number-3">2.3</span> Bind 9</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+I'm using Bind 9. You can use Bind 8 as well, but Bind 8 doesn't let
+you specify a port in the forwarders block. If you choose to use Bind
+8, you will have to run rbldnsd on a separate IP address.
+</p>
+</div>
+
+<div id="outline-container-2-3-1" class="outline-4">
+<h4 id="sec-2-3-1"><span class="section-number-4">2.3.1</span> named.conf</h4>
+<div class="outline-text-4" id="text-2-3-1">
+<p>
+We're going to tell bind to forward all requests for an RBL that we
+mirror to rbldnsd. To do this, we simply need to add a zone entry to
+named.conf of type forward.
+</p>
+
+<pre class="example">
+# RBLs
+# rbldnsd should be running on the dns server on port 1053.
+
+zone "list.dsbl.org" IN {
+         type forward;
+         forward first;
+         forwarders {
+                127.0.0.1 port 1053;
+         };
+};
+</pre>
+
+<p>
+In the example above, I have a forward zone for list.dsbl.org which is
+mirrored by rbldnsd. Add a similar block for every RBL you are
+mirroring.
+</p>
+
+<p>
+<b>Note:</b> Bind 8 users will, of course, not be able to specify a port here.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-2-4" class="outline-3">
+<h3 id="sec-2-4"><span class="section-number-3">2.4</span> Keeping Your Blacklists in Sync</h3>
+<div class="outline-text-3" id="text-2-4">
+<p>
+Now that you're all setup, you need to get the rbldns zone files and
+keep them synced. Most of the RBL providers allow rsync access to
+their zone files which makes things very nice. Below is an example on
+how to get the list.dsbl.org zone.
+</p>
+
+<pre class="example">
+rsync -t rsync.dsbl.org::'dsbl/rbldns-list.dsbl.org' /usr/local/etc/rbldnsd/
+</pre>
+
+<p>
+Generally, you will want to write a quick script that will go out and
+get all of your zones that you can run from cron. There are a plethora
+of scripts out there but the simplest is to create something that
+looks like this.
+</p>
+
+<pre class="example">
+#!/bin/sh
+rsync -t rsync.dsbl.org::'dsbl/rbldns-list.dsbl.org' /usr/local/etc/rbldnsd/
+rsync -t rsync://rsync.cbl.abuseat.org/cbl/list.txt /usr/local/etc/rblsdns/
+</pre>
+
+<p>
+As is my wont, I have written a little Perl script to sync the zone
+files called rsync-zones. There is a sample config file available as
+well.
+</p>
+
+<p>
+<b>Update <span class="timestamp-wrapper"><span class="timestamp">[2012-03-15 Thu 17:01]</span></span>:</b> I no longer have the sciprt mentioned above.
+</p>
+
+<p>
+Then add the something like the following to /etc/crontab.
+</p>
+
+<pre class="example">
+36      *       *       *       *       root    /usr/local/sbin/rsync-zones
+</pre>
+</div>
+</div>
+</div>

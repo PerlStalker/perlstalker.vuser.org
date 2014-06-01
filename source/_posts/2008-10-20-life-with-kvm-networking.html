@@ -1,0 +1,216 @@
+---
+layout: post
+title: "Life with KVM: Networking"
+date: 2008-10-20 20:46
+comments: true
+categories: [kvm, linux, virtualization, networking]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2008-10-20 Mon 20:46]</span></span></i>
+</p>
+
+<p>
+I spent a couple of days a while back trying to figure out why I was seeing
+bizarre bridge and network errors in my KVM host's syslog and a VM that only
+two of three NICs worked at a time. Turns out that there is a very simple fix
+for both problems.
+</p>
+
+<p>
+First, let's start with the KVM host network configuration. Here's the basic
+config for a host with two NICs. It gives you a pretty basic setup for your
+KVM host network on Debian systems. You should be able to adapt them for other
+systems. The important thing to note is that you will need a bridge device if
+you want your VMs to be directly accessible.
+</p>
+
+<pre class="example">
+# The primary network interface
+auto eth0
+iface eth0 inet manual
+
+auto br0
+iface br0 inet static
+      bridge_ports eth0
+      bridge_hello 2
+      bridge_maxage  12
+      bridge_stp on
+      bridge_maxwait 5
+      address 10.10.134.89
+      netmask 255.255.255.192
+      network 10.10.134.64
+      broadcast 10.10.134.127
+      gateway 10.10.134.126
+
+# Storage network
+auto eth1
+iface eth1 inet static
+      address 0.0.0.0
+      netmask 0.0.0.0
+      mtu 9000
+
+auto br1
+iface br1 inet static
+      bridge_ports eth1
+      bridge_hello 2
+      bridge_maxage  12
+      bridge_stp on
+      bridge_maxwait 5
+      address 192.168.0.11
+      netmask 255.255.255.0
+</pre>
+
+<p>
+This setup gives me a pair of bridged interfaces I can attach my guests to.
+The first is an Internet facing network (address changed to protect the
+guilty). The second is a storage network that allows my guests to mount iSCSI
+targets directly. (I have more interfaces on other networks but this will do
+for this discussion.)
+</p>
+
+<p>
+A couple of things of note. I have turned up the MTU on eth1 to 9000. This
+network uses jumbo frames to provide a little bit of a boost to the iSCSI
+links. It's certainly, not required.
+</p>
+
+<p>
+Update (2008-10-23 20:07): I was reading a little more today and came across a
+brief discussion of jumbo frames on qemu and, by extension, kvm. There seems
+to be a 4K limit in qemu's VLAN implementation. Virtio-net seems to work fine
+with jumbo frames.
+</p>
+
+<p>
+The other thing is that I have turned STP on. I had problems with live
+migration with STP off. Turning it on fixed my live migration but contributed
+to my network issues. Let me explain.
+</p>
+
+<p>
+A healthy bridge with STP will look something like this:
+</p>
+
+<pre class="example">
+$ brctl showstp br1
+br1
+ bridge id              8000.001ec9cbeb53
+ designated root        8000.0019b9cdb57d
+ root port                 1                    path cost                  4
+ max age                  12.00                 bridge max age            12.00
+ hello time                2.00                 bridge hello time          2.00
+ forward delay            15.00                 bridge forward delay      15.00
+ ageing time             300.00
+ hello timer               0.00                 tcn timer                  0.00
+ topology change timer     0.00                 gc timer                   9.38
+ flags
+
+eth1 (1)
+ port id                8001                    state                forwarding
+ designated root        8000.0019b9cdb57d       path cost                  4
+ designated bridge      8000.0019b9cdb57d       message age timer         10.43
+ designated port        8001                    forward delay timer        0.00
+ designated cost           0                    hold timer                 0.00
+ flags
+
+tap10 (2)
+ port id                8002                    state                forwarding
+ designated root        8000.0019b9cdb57d       path cost                100
+ designated bridge      8000.001ec9cbeb53       message age timer          0.00
+ designated port        8002                    forward delay timer        0.00
+ designated cost           4                    hold timer                 0.00
+ flags
+</pre>
+
+<p>
+Notice how all of the interfaces in the bridge are in the forwarding state.
+What happened to me was that I had certain VM tap devices get put into a 
+blocking state. What that happens no traffic is sent through the interface.
+</p>
+
+<p>
+What took me all those days to find out was why the interface was stuck
+blocking. Basically, qemu (which kvm uses) has the notion of virtual networks.
+The docs call them vlans but they are not the same as 802.11q VLANs. However,
+they serve the same purpose. NICs in different qemu-vlans are in separate
+broadcast domains.
+</p>
+
+<p>
+So, what does that mean? When I set the VM up the first time, I had this for
+my network config.
+</p>
+
+<pre class="example">
+... -net nic,model=virtio -net tap,script=/etc/kvmctl/scripts/kvm-ifup-test\
+ -net nic,model=virtio -net tap,script=/etc/kvmctl/scripts/kvm-ifup-storage
+</pre>
+
+<p>
+Each net option has a parameter, vlan, that if left unset (as above) it
+defaults to 0. In this case, I had both NICs in the same broadcast domain
+(qemu-vlan 0). When STP tried to figure out where the taps were, it got
+confused because it saw traffic from one NIC on the other. Basically, it did
+what it's supposed to do and shut down one of them to prevent an ethernet
+loop.
+</p>
+
+<p>
+The fix is to set the vlan on each virtual NIC, like so:
+</p>
+
+<pre class="example">
+... -net nic,vlan=0,model=virtio -net tap,script=/etc/kvmctl/scripts/kvm-ifup-test,vlan=0\
+ -net nic,vlan=1,model=virtio -net tap,script=/etc/kvmctl/scripts/kvm-ifup-storage,vlan=1
+</pre>
+
+<p>
+No more problems. :-) I suggest that you use the same vlan number for each
+network. I use the number on the bridge.
+</p>
+
+<p>
+For the curious, the kvm-ifup-* scripts look like this. (This is kvm-ifup-test
+.)
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">!/bin/</span><span style="color: #00ffff;">bash</span>
+
+<span style="color: #eedd82;">CONFDIR</span>=/etc/kvmctl
+
+<span style="color: #b0c4de;">.</span> $<span style="color: #eedd82;">CONFDIR</span>/scripts/kvm-ifup.conf
+
+$<span style="color: #eedd82;">IFCONFIG</span> $<span style="color: #eedd82;">1</span> 0.0.0.0 up
+$<span style="color: #eedd82;">BRCTL</span> addif $<span style="color: #eedd82;">IF_TEST</span> $<span style="color: #eedd82;">1</span>
+</pre>
+</div>
+
+<p>
+And kvm-ifup.conf
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #eedd82;">IFCONFIG</span>=/sbin/ifconfig
+<span style="color: #eedd82;">BRCTL</span>=/usr/sbin/brctl
+
+<span style="color: #ff7f24;"># </span><span style="color: #ff7f24;">Interface defaults</span>
+<span style="color: #eedd82;">IF_DMZ</span>=br3
+<span style="color: #eedd82;">IF_TEST</span>=br0
+<span style="color: #eedd82;">IF_MS</span>=br4
+<span style="color: #eedd82;">IF_STORAGE</span>=br1
+<span style="color: #eedd82;">IF_BACKUP</span>=br2
+
+<span style="color: #ff7f24;"># </span><span style="color: #ff7f24;">Load host specific overrides</span>
+<span style="color: #eedd82;">UNAME</span>=<span style="color: #fa8072;">`uname -n`</span>
+<span style="color: #00ffff;">if</span> [ -r $<span style="color: #eedd82;">CONFDIR</span>/scripts/kvm-ifup-${<span style="color: #eedd82;">UNAME</span>}.conf ]; <span style="color: #00ffff;">then</span>
+   <span style="color: #b0c4de;">.</span> $<span style="color: #eedd82;">CONFDIR</span>/scripts/kvm-ifup-${<span style="color: #eedd82;">UNAME</span>}.conf
+<span style="color: #00ffff;">fi</span>
+</pre>
+</div>
+
+<p>
+For further details on qemu network settings, see <a href="http://bellard.org/qemu/qemu-doc.html#SEC25">QEMU Network Emulation</a>.
+</p>

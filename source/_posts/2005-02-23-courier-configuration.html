@@ -1,0 +1,461 @@
+---
+layout: post
+title: Courier Configuration
+date: 2005-02-23 15:43
+comments: true
+categories: [courier, mysql]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-02-23 Wed 15:43]</span></span></i>
+</p>
+
+<p>
+I use MySQL to store user data in courier. Here's how to set it up.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Configure Courier</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Before you begin, find your courier installation's configuration
+directory. It is usually <code>/usr/local/etc/courier</code>, <code>/etc/courier</code> or
+<code>/usr/local/courier/etc</code>.  Unless otherwise noted, the files mentioned
+here will be in this directory.
+</p>
+</div>
+
+<div id="outline-container-1-1" class="outline-3">
+<h3 id="sec-1-1"><span class="section-number-3">1.1</span> smtpaccess/</h3>
+<div class="outline-text-3" id="text-1-1">
+<p>
+You need to edit the files in this directory to allow relaying by IP address.
+To allow an IP to relay, add a line like this to any file in this directory.
+(aaa.bbb.ccc.ddd is the IP to allow, [tab] is a literal tab character.
+</p>
+
+<pre class="example">
+aaa.bbb.ccc.ddd[tab]allow,RELAYCLIENT
+</pre>
+
+<p>
+I like to delete the default file, but you can edit that file if you like.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">rm default
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-1-2" class="outline-3">
+<h3 id="sec-1-2"><span class="section-number-3">1.2</span> smtpaccess/localhost</h3>
+<div class="outline-text-3" id="text-1-2">
+<p>
+You need to add 127.0.0.1 to allow localhost to use SMTP.
+</p>
+
+<pre class="example">
+127.0.0.1[tab]allow,RELAYCLIENT
+</pre>
+</div>
+</div>
+<div id="outline-container-1-3" class="outline-3">
+<h3 id="sec-1-3"><span class="section-number-3">1.3</span> smtpaccess/amigo</h3>
+<div class="outline-text-3" id="text-1-3">
+<p>
+This is where I (at <a href="http://www.amigo.net/">Amigo.Net</a>) allow our CIDR to relay. I call this
+file <code>amigo</code> because it's our company name. You can call it whatever
+you want.
+</p>
+
+<p>
+Unfortunately, you can only wild card full octets. For eample, 192.168.1 will
+allow all addresses from 192.168.1.0-192.168.1.255 and 192.168 will allow
+192.168.0.0-192.168.255.255.
+</p>
+
+<pre class="example">
+209.94.64[tab]allow,RELAYCLIENT
+209.94.65[tab]allow,RELAYCLIENT
+209.94.66[tab]allow,RELAYCLIENT
+...
+209.94.95[tab]allow,RELAYCLIENT
+</pre>
+
+<p>
+The easy way to create this is with a little shell script.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #00ffff;">for</span> i<span style="color: #00ffff;"> in</span> <span style="color: #fa8072;">`jot 32 64 95`</span>; <span style="color: #00ffff;">do</span>
+      <span style="color: #b0c4de;">echo</span> -e <span style="color: #ffa07a;">"209.94.$i\tallow,RELAYCLIENT"</span>
+<span style="color: #00ffff;">done</span> &gt; smtpaccess/amigo
+</pre>
+</div>
+
+<p>
+Run <code>makesmtpaccess</code> when you are done.
+</p>
+
+<p>
+<b>Note:</b> I find it necessary to restart courier after changing this.
+</p>
+</div>
+</div>
+<div id="outline-container-1-4" class="outline-3">
+<h3 id="sec-1-4"><span class="section-number-3">1.4</span> emtpd</h3>
+<div class="outline-text-3" id="text-1-4">
+<pre class="example">
+TCPDOPTS="-stderrlogger=/usr/local/sbin/courierlogger -noidentlookup
+-nodnslookup"
+AUTHMODULES="authdaemon"
+ESMTPAUTH="LOGIN CRAM-MD5 PLAIN"
+ESMTPAUTH_TLS="LOGIN CRAM-MD5 PLAIN"
+ESMTPDSTART=YES
+</pre>
+</div>
+</div>
+<div id="outline-container-1-5" class="outline-3">
+<h3 id="sec-1-5"><span class="section-number-3">1.5</span> pop3d</h3>
+<div class="outline-text-3" id="text-1-5">
+<pre class="example">
+POP3AUTH="LOGIN CRAM-MD5 CRAM-SHA1"
+POP3AUTH_TLS="LOGIN PLAIN"
+POP3DSTART=YES
+</pre>
+</div>
+</div>
+<div id="outline-container-1-6" class="outline-3">
+<h3 id="sec-1-6"><span class="section-number-3">1.6</span> imapd</h3>
+<div class="outline-text-3" id="text-1-6">
+<pre class="example">
+IMAP_OBSOLETE_CLIENT=1
+IMAPDSTART=YES
+</pre>
+</div>
+</div>
+<div id="outline-container-1-7" class="outline-3">
+<h3 id="sec-1-7"><span class="section-number-3">1.7</span> hosteddomains</h3>
+<div class="outline-text-3" id="text-1-7">
+<p>
+Add virtual domains to this file.
+</p>
+
+<pre class="example">
+amigo.net
+my.amigo.net
+</pre>
+
+<p>
+You may want to alias one domain to another. For example you may want 
+<code>mail.example.com</code> to be the same as <code>example.com</code>. You do that like this:
+</p>
+
+<pre class="example">
+example.com
+mail.example.com[tab]example.com
+</pre>
+
+<p>
+Run <code>makehosteddomains</code> when you're done.
+</p>
+
+<p>
+<b>Note:</b> I restart courier after changing this as well.
+</p>
+</div>
+</div>
+<div id="outline-container-1-8" class="outline-3">
+<h3 id="sec-1-8"><span class="section-number-3">1.8</span> logindomainlist</h3>
+<div class="outline-text-3" id="text-1-8">
+<p>
+This provides a drop down list of domains for sqwebmail. Domains are listed
+one per line.
+</p>
+</div>
+</div>
+<div id="outline-container-1-9" class="outline-3">
+<h3 id="sec-1-9"><span class="section-number-3">1.9</span> usexsender</h3>
+<div class="outline-text-3" id="text-1-9">
+<p>
+This file just needs to exist.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">touch usexsender
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-1-10" class="outline-3">
+<h3 id="sec-1-10"><span class="section-number-3">1.10</span> authdaemonrc</h3>
+<div class="outline-text-3" id="text-1-10">
+<p>
+We should disable authmodules that are not being used.
+</p>
+
+<pre class="example">
+authmodulelist="authmysql"
+</pre>
+
+<p>
+Make sure courier uses the MySQL backend.
+</p>
+
+<pre class="example">
+version="authdaemond.mysql"
+</pre>
+</div>
+</div>
+<div id="outline-container-1-11" class="outline-3">
+<h3 id="sec-1-11"><span class="section-number-3">1.11</span> defaultdomain</h3>
+<div class="outline-text-3" id="text-1-11">
+<p>
+This will be appended to addresses that don't have a domain specified. You
+will, of course, use your domain here. <b>Note:</b> This file does not exist by
+default.
+</p>
+
+<pre class="example">
+amigo.net
+</pre>
+</div>
+</div>
+<div id="outline-container-1-12" class="outline-3">
+<h3 id="sec-1-12"><span class="section-number-3">1.12</span> enablefiltering</h3>
+<div class="outline-text-3" id="text-1-12">
+<p>
+This is a list of services that will be filtered with courierfilters.
+</p>
+
+<pre class="example">
+esmtp local
+</pre>
+</div>
+</div>
+<div id="outline-container-1-13" class="outline-3">
+<h3 id="sec-1-13"><span class="section-number-3">1.13</span> esmtpaccecptmailfor and esmtpacceptmailfor.dir/</h3>
+<div class="outline-text-3" id="text-1-13">
+<p>
+<code>esmtpacceptmailfor</code> and files in <code>esmtpacceptmailfor.dir/</code> contain lists of
+domains that this server will accept mail for. Domains are listed one per
+line.
+</p>
+</div>
+</div>
+<div id="outline-container-1-14" class="outline-3">
+<h3 id="sec-1-14"><span class="section-number-3">1.14</span> bofh</h3>
+<div class="outline-text-3" id="text-1-14">
+<p>
+Set BOFHBADMIME to accept mail with bad chars in the header. There are places
+like Yahoo! and HotMail that send mail with screwed up headers. <b>Note:</b> This
+file does not exist by default.
+</p>
+
+<pre class="example">
+opt BOFHBADMIME=accept
+</pre>
+
+<p>
+You can enable SPF checks in this file too. See <a href="http://perlstalker.vuser.org/blog/2005/02/23/courier-and-spf/">Courier and SPF</a> for more
+details.
+</p>
+</div>
+</div>
+<div id="outline-container-1-15" class="outline-3">
+<h3 id="sec-1-15"><span class="section-number-3">1.15</span> /usr/local/etc/maildroprc</h3>
+<div class="outline-text-3" id="text-1-15">
+<p>
+This is the global config file for maildrop. It doesn't actually do anything
+at this point but is the basis for other changes for things like
+<a href="http://perlstalker.vuser.org/blog/2005/01/22/Courier-SpamAssassin/">global spam filtering</a> with <a href="http://www.spamassassin.org/">SpamAssassin</a>.
+</p>
+
+<p>
+<b>Note:</b> I like to put this in <code>/usr/local/etc/courier</code> and symlink to
+<code>/usr/local/etc/maildroprc</code>. This is not at all required.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">ln -s /usr/local/etc/courier/maildroprc /usr/local/etc/maildroprc
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-1-16" class="outline-3">
+<h3 id="sec-1-16"><span class="section-number-3">1.16</span> calendarmode</h3>
+<div class="outline-text-3" id="text-1-16">
+<p>
+This is only needed if you want to have a calendar in sqwebmail.
+</p>
+
+<p>
+Set to local for account level calendars and net for a groupware calendar. (We
+use local for our customers.)
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"local"</span> &gt;calendarmode
+</pre>
+</div>
+
+<p>
+Or
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"net"</span> &gt;calendarmode
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-1-17" class="outline-3">
+<h3 id="sec-1-17"><span class="section-number-3">1.17</span> skel</h3>
+<div class="outline-text-3" id="text-1-17">
+<p>
+I setup a skeleton directory for virtual users named <code>skel</code>. This is used when
+new accounts are created to set everything up.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">mkdir skel
+<span style="color: #b0c4de;">cd</span> skel
+maildirmake Maildir
+maildirmake -q 20000000S Maildir
+maildirmake -f Spam Maildir
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"MAILDIRFILTER=../.mailfilter"</span> &gt; Maildir/maildirfilterconfig
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"MAILDIR=./Maildir"</span> &gt;&gt; Maildir/maildirfilterconfig
+/usr/local/share/courier/sqwebmail/webgpg Maildir
+chown -R courier ../skel
+chmod 600 ../skel/Maildir/maildirfilterconfig
+</pre>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Setup sqwebmail</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Set up the webmail CGI. This is purely optional.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">cp /usr/local/libexec/courier/webmail /usr/local/www/cgi-bin/webmail
+mkdir /usr/local/www/data/webmail
+cp -R /usr/local/share/courier/sqwebmail/images/ /usr/local/www/data/webmail/
+</pre>
+</div>
+
+<p>
+<b>Note:</b> By default, webmail times out sessions in 20 minutes. This seems a bit
+short to me. To increase it to an hour, add
+</p>
+
+<pre class="example">
+SetEnv SQWEBMAIL_TIMEOUTSOFT 3600
+</pre>
+
+<p>
+to <code>/usr/local/etc/apache/httpd.conf</code>. If you set it higher than 7200, you need
+to adjust <code>$timeout</code> in <code>/usr/local/share/courier/sqwebmail/cleancache.pl</code>.
+</p>
+</div>
+
+<div id="outline-container-2-1" class="outline-3">
+<h3 id="sec-2-1"><span class="section-number-3">2.1</span> Add cleancache.pl to crontab.</h3>
+<div class="outline-text-3" id="text-2-1">
+<pre class="example">
+25 * * * * root /usr/local/share/courier/sqwebmail/cleancache.pl
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Configure Courier to Use MySQL</h2>
+<div class="outline-text-2" id="text-3">
+</div><div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> Create the Database</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+#+BEGIN_SRC sql
+create database Accounts;
+</p>
+
+<p>
+use Accounts;
+</p>
+
+<p>
+CREATE TABLE EmailAccounts (
+         username        varchar(128)    default ''      NOT NULL,
+         name            varchar(128)    default ''      NULL,
+         clearpw         varchar(128)    default ''      NOT NULL,
+         uid             int(10)         default 62      NOT NULL,
+         gid             int(10)         default 62      NOT NULL,
+         home            varchar(255)                    NOT NULL,
+         quota           varchar(255)    default '20000000S'     NOT NULL,
+         alias_for       varchar(128)                    NULL,
+         PRIMARY KEY(username)
+) COMMENT = "Email account Account settings.";
+</p>
+
+<p>
+GRANT ALL on Accounts.* to postmaster IDENTIFIED by '&lt;passwd&gt;';
+GRANT SELECT,DELETE,INSERT,UPDATE on Accounts.* to
+         courier IDENTIFIED by '&lt;passwd&gt;';
+#+END_SRC sql
+</p>
+
+<p>
+The user courier really only needs SELECT permissions. Feel from to change the
+grant line if that works better for you. If you change it, you will need to
+use postmaster to modify the table.
+</p>
+</div>
+</div>
+<div id="outline-container-3-2" class="outline-3">
+<h3 id="sec-3-2"><span class="section-number-3">3.2</span> Change authmysqlrc</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+<code>authmysqlrc</code> is in <code>/usr/local/etc/courier/authmysqlrc</code> on FreeBSD.
+</p>
+
+<pre class="example">
+MYSQL_SERVER           localhost
+MYSQL_USERNAME         courier
+MYSQL_PASSWORD         &lt;password&gt;
+MYSQL_SOCKET           /tmp/mysql.sock
+MYSQL_DATABASE         Accounts
+MYSQL_USER_TABLE       EmailAccounts
+#MYSQL_CRYPT_PWFIELD   cryptpw
+MYSQL_CLEAR_PWFIELD    clearpw
+DEFAULT_DOMAIN         amigo.net
+MYSQL_UID_FIELD        uid
+MYSQL_GID_FIELD        gid
+MYSQL_LOGIN_FIELD      username
+MYSQL_HOME_FIELD       home
+MYSQL_NAME_FIELD       name
+#MYSQL_MAILDIR_FIELD   maildir
+MySQL_QUOTA_FIELD      quota
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Adding/Deleting/Modifying a Virtual User</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Users can be added to the database using whatever tool you like. I use a perl
+script called <a href="http://www.vuser.org/">vuser</a>.
+</p>
+</div>
+</div>

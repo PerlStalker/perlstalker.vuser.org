@@ -1,0 +1,133 @@
+---
+layout: post
+title: "JSON Serialization with Dancer and MooseX::Storage"
+date: 2011-04-27 16:07
+comments: true
+categories: [dancer, json, perl, "MooseX::Storage"]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-04-27 Wed 16:07]</span></span></i>
+</p>
+
+<p>
+I'm hacking on a new tool in perl to manage my KVM cluster. Part of it is a
+RESTful interface using JSON. The objects I'm using are written using Moose
+and MooseX::Storable to simplify serialization. I can convert objects back and
+forth between perl objects and JSON all day. Unfortunately, there's a fly in
+the ointment.
+</p>
+
+<p>
+I'm using Dancer to provide the framework for the RESTful interface. The nice
+thing about Dancer is that it can automatically serialize perl data structures
+and it can do it via JSON. That's all shiny except Dancer's serializer doesn't
+know about MooseX::Storable. In fact, Dancer chokes when I try to send an
+object back from one of the handlers.
+</p>
+
+<p>
+All is not lost. There is a work around that appears to work in my tests.
+First of all, I needed to tell Dancer that it's okay to try and convert my
+objects. This is done in <code>config.yml</code>.
+</p>
+
+<pre class="example">
+engines:
+  JSON:
+    convert_blessed: '1'
+</pre>
+
+<p>
+That tells Dancer, via the JSON package, to try to convert objects using the
+method TO_JSON. But, wait! I don't have one of those. Yet. Fortunately,
+MooseX::Storable has everything I need.
+</p>
+
+<p>
+The MooseX::Storable API offers a couple of options. The first is to use
+freeze() to turn the object into a JSON string. That works if I'm only
+returning a single object but I'm often returning lists of things which
+complicates things.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-perl"><span style="color: #00ffff;">sub</span> <span style="color: #87cefa;">TO_JSON</span> { $<span style="color: #eedd82;">_</span>[0]-&gt;freeze }
+</pre>
+</div>
+
+<p>
+Actually, it seems to work but Dancer has goes through the returned JSON
+string and encodes before sending it on. That's actually a second round of
+encoding since MooseX::Storable did it once already. Here's what a list
+containing an object looks like.
+</p>
+
+<pre class="example">
+[
+   "{\"__CLASS__\":\"YAVMM::Host-0.01\",\"cluster\":\"dev\",\"name\":\
+"rbsmith-desktop\",\"ram\":3924056,\"num_cpus\":4}"
+]
+</pre>
+
+<p>
+Ugly, huh? In fact, that might screw up anything non-perl that tries to use
+the RESTful interface. We can get around that by going down one level and
+using <code>pack()</code> instead.
+</p>
+
+<p>
+<code>pack()</code> and the corresponding <code>unpack()</code> are required by anything implementing
+the MooseX::Storage API. Rather than going all the way to JSON, <code>pack()</code> spits
+back a serialized perl hashref. It turns out that that is exactly what Dancer
+needs to properly encode the object. So, I changed <code>TO_JSON</code> to look like this:
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-perl"><span style="color: #00ffff;">sub</span> <span style="color: #87cefa;">TO_JSON</span> { $<span style="color: #eedd82;">_</span>[0]-&gt;pack }
+</pre>
+</div>
+
+<p>
+The new output is below. Isn't it pretty? That's exactly what the JSON should
+look like.
+</p>
+
+<pre class="example">
+[
+   {
+      "__CLASS__" : "YAVMM::Host-0.01",
+      "cluster" : "dev",
+      "name" : "rbsmith-desktop",
+      "ram" : 3924056,
+      "num_cpus" : 4
+   }
+]
+</pre>
+
+<p>
+On the client side, I still need to decode that mess. That's actually very
+easy using the JSON module and feeding the JSON text into <code>decode_json()</code>. That
+spits back a perl hash or list reference that has the (mostly) deserialized
+data. I say mostly because my objects are still hashes and not objects. All
+that I need to do is feed those hashrefs to <code>unpack()</code> and I get my object back.
+</p>
+
+<p>
+Here's how I would translate that list above. <b>Note:</b> My object is called
+YAVMM::Host. You would, of course, use your own class name instead. Also,
+assume that <code>$json_text</code> has the JSON text. How it got there is beyond the scope
+of this document.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-perl"><span style="color: #98fb98;">my</span> @<span style="color: #eedd82; text-decoration: underline;">hosts</span> = map { YAVMM::Host-&gt;unpack($<span style="color: #eedd82;">_</span>) } @{ decode_json($<span style="color: #eedd82;">json_text</span>) };
+</pre>
+</div>
+
+<p>
+Now <code>@hosts</code> is a list with a bunch of YAVMM::Host objects that I can have all
+sorts of fun with.
+</p>

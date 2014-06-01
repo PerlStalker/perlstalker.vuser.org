@@ -1,0 +1,75 @@
+---
+layout: post
+title: Running Emacs Functions in Batch Mode
+date: 2011-11-10 10:22
+comments: true
+categories: [emacs]
+---
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-11-10 Thu 10:22]</span></span></i>
+</p>
+
+<p>
+I use emacs for a lot of things at work. One of the more useful is <a href="http://orgmode.org/">org-mode</a>
+for to do lists, scheduling and meeting notes. Org-mode can sync to mobile
+devices running the app MobileOrg. Unfortunately, that sync is a manual
+process. The good news, emacs is scriptable and can be run in batch mode to
+automate things. Here are a couple of things I use.
+</p>
+
+<p>
+<b>Note:</b> Emacs batch mode spews a huge amount of crap to stderr. If you're
+putting these in cron, you may want to slap a <code>2&gt;/dev/null</code> on there to keep it
+quiet.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Sync with MobileOrg</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The first line pushes the local org files to sync and the second pulls changes
+coming from the device.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">emacs --batch -l $<span style="color: #eedd82;">HOME</span>/.emacs -f org-mobile-push
+emacs --batch -l $<span style="color: #eedd82;">HOME</span>/.emacs -f org-mobile-pull
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Publish Meeting Minutes</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+I keep meeting minutes using org-mode and then publish them to my web site. I
+also maintain my personal work site using org-mode. To publish all configured
+sites, you can use the script below.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">emacs --batch -l $<span style="color: #eedd82;">HOME</span>/.emacs -f org-publish-all
+</pre>
+</div>
+
+<p>
+If you want to publish a specific site rather than all of them, you can use
+this incantation.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">emacs --batch -l $<span style="color: #eedd82;">HOME</span>/.emacs --eval <span style="color: #ffa07a;">'(org-publish "meetings")'</span>
+</pre>
+</div>
+
+<p>
+<b>Updated <span class="timestamp-wrapper"><span class="timestamp">[2012-03-22 Thu 22:49]</span></span>:</b> It's also possible to use <code>&#x2013;eval</code>
+ with <code>emacsclient</code>. You, of course, need emacs server running but it makes
+ those batch runs much faster.
+</p>
+</div>
+</div>

@@ -1,0 +1,420 @@
+---
+layout: post
+title: gfs on Gentoo
+date: 2006-03-24 10:40
+comments: true
+categories: [gfs, gentoo]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2006-03-24 Fri 10:40]</span></span></i>
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Installing</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Many of the needed packages are masked. Add the following to <code>/etc/portage/
+packages.keywords</code>
+</p>
+
+<pre class="example">
+sys-fs/gfs ~x86
+sys-cluster/gfs-kernel ~x86
+sys-cluster/cman ~x86
+sys-cluster/cman-headers ~x86
+sys-cluster/cman-kernel ~x86
+sys-cluster/ccs ~x86
+sys-cluster/magma ~x86
+sys-cluster/magma-plugins ~x86
+sys-cluster/dlm ~x86
+sys-cluster/dlm-headers ~x86
+sys-cluster/dlm-kernel ~x86
+sys-cluster/iddev ~x86
+sys-cluster/gfs-headers ~x86
+sys-cluster/fence ~x86
+sys-fs/clvm ~x86
+sys-cluster/gnbd ~x86
+sys-cluster/gnbd-headers ~x86
+sys-cluster/gnbd-kernel ~x86
+</pre>
+
+<p>
+Now you can emerge the packages. All of these packages are needed for the
+client machines except for <code>sys-fs/clvm</code>.
+</p>
+
+<pre class="example">
+emerge gfs cman-kernel gfs-kernel dlm-kernel clvm ntp magma-plugins gnbd gnbd-kernel
+</pre>
+
+<p>
+<b>Note:</b> Remember to re-emerge the *-kernel packages when you upgrade your
+kernel.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Configuration</h2>
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> /etc/cluster/cluster.conf</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Edit <code>/etc/cluster/cluster.conf</code>.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-xml">&lt;?<span style="color: #00ffff;">xml</span> <span style="color: #eedd82;">version</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">1.0</span><span style="color: #ffa07a;">"</span>?&gt;
+&lt;<span style="color: #87cefa;">cluster</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">mailfs</span><span style="color: #ffa07a;">"</span> <span style="color: #eedd82;">config_version</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">1</span><span style="color: #ffa07a;">"</span>&gt;
+&lt;<span style="color: #87cefa;">cman</span> <span style="color: #eedd82;">two_node</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">1</span><span style="color: #ffa07a;">"</span> <span style="color: #eedd82;">expected_votes</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">1</span><span style="color: #ffa07a;">"</span>/&gt;
+
+&lt;<span style="color: #87cefa;">clusternodes</span>&gt;
+  &lt;<span style="color: #87cefa;">clusternode</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">server1</span><span style="color: #ffa07a;">"</span>&gt;
+   &lt;<span style="color: #87cefa;">fence</span>&gt;
+    &lt;<span style="color: #87cefa;">method</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">single</span><span style="color: #ffa07a;">"</span>&gt;
+     &lt;<span style="color: #87cefa;">device</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">gnbd</span><span style="color: #ffa07a;">"</span> <span style="color: #eedd82;">nodename</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">server1</span><span style="color: #ffa07a;">"</span>/&gt;
+    &lt;/<span style="color: #87cefa;">method</span>&gt;
+   &lt;/<span style="color: #87cefa;">fence</span>&gt;
+  &lt;/<span style="color: #87cefa;">clusternode</span>&gt;
+
+  &lt;<span style="color: #87cefa;">clusternode</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">client1</span><span style="color: #ffa07a;">"</span>&gt;
+   &lt;<span style="color: #87cefa;">fence</span>&gt;
+    &lt;<span style="color: #87cefa;">method</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">single</span><span style="color: #ffa07a;">"</span>&gt;
+     &lt;<span style="color: #87cefa;">device</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">gnbd</span><span style="color: #ffa07a;">"</span> <span style="color: #eedd82;">nodename</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">server1</span><span style="color: #ffa07a;">"</span>/&gt;
+    &lt;/<span style="color: #87cefa;">method</span>&gt;
+   &lt;/<span style="color: #87cefa;">fence</span>&gt;
+  &lt;/<span style="color: #87cefa;">clusternode</span>&gt;
+
+&lt;/<span style="color: #87cefa;">clusternodes</span>&gt;
+
+&lt;<span style="color: #87cefa;">fencedevices</span>&gt;
+&lt;<span style="color: #87cefa;">fencedevice</span> <span style="color: #eedd82;">name</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">gnbd</span><span style="color: #ffa07a;">"</span> <span style="color: #eedd82;">agent</span>=<span style="color: #ffa07a;">"</span><span style="color: #ffa07a;">fence_gnbd</span><span style="color: #ffa07a;">"</span>/&gt;
+&lt;/<span style="color: #87cefa;">fencedevices</span>&gt;
+
+&lt;/<span style="color: #87cefa;">cluster</span>&gt;
+</pre>
+</div>
+
+<p>
+<b>Note:</b> The name for each clusternode must be a resolvable hostname. Also note
+that the config above is for a two node cluster. If you have more than two
+nodes, you can remove the <code>cman</code> tag.
+</p>
+</div>
+
+<div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> /etc/ntp.conf</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+The defaults should work for most people. You may want to set the <code>server</code>
+option if you have your own ntp server.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Setup LVM</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+The setup for LVM will vary greatly depending on your setup, storage needs and
+if you are using <code>md</code> to do software RAID. The basic steps are:
+</p>
+
+<ol class="org-ol">
+<li>Use <code>pvcreate</code> to mark each physical volume, i.e. partition, disk, etc.,
+as an device suitable for use by LVM. If you are using <code>md</code>, you must
+create those devices first and then use <code>pvcreate</code> to make them ready
+for LVM.
+</li>
+<li>Use <code>vgcreate</code> to create the volume group, i.e. virtual device, for use
+with each physical volume created above. You can add additional physical
+volumes to the group later with <code>vgextend</code>.
+</li>
+<li>Use <code>lvcreate</code> to create the a logical volume within a volume group. The
+logical volume can use some or all of the volume group for use as usable
+devices. These logical volumes can be mounted and used as a regular block
+device, i.e. it looks like a regular disk. The device will be named <code>/var
+    /vgname/lvname</code>. On the system I use for the email cluser at amigo.net, I
+named the volume group <code>vg01</code> and the logical volume <code>mail</code> so the
+device is named <code>/var/vg01/mail</code>.
+</li>
+</ol>
+
+<p>
+When you're done, add <code>clvmd</code> to your startup.
+</p>
+
+<pre class="example">
+rc-update add clvmd start
+</pre>
+</div>
+
+<div id="outline-container-4-1" class="outline-3">
+<h3 id="sec-4-1"><span class="section-number-3">4.1</span> Example Configuration Using md</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+Here is an example of how you might setup a logical volume using <code>md</code>
+devices. This is not meant to be an all-inclusive explanation of how <code>md</code> or
+LVM work. It's simply presented as an example of how things can work.
+</p>
+</div>
+
+<div id="outline-container-4-1-1" class="outline-4">
+<h4 id="sec-4-1-1"><span class="section-number-4">4.1.1</span> /etc/raidtab</h4>
+<div class="outline-text-4" id="text-4-1-1">
+<p>
+<code>/etc/raidtab</code> is where you configure your RAID setup. I setup my drives in
+a RAID10 (or 1+0, take your pick) configuration. This is not the only way to
+setup a RAID10. I've heard rummors of an option to set <code>raid-level</code> to 10
+and be able to do the whole config one block but I have not seen docs on it.
+You can also use LVM to do the striping instead of md. That gives you a bit
+more flexibility by letting you add pairs to the RAID easily but, from what
+I've see in places around the Web, the performance isn't as good.
+</p>
+
+<pre class="example">
+# Mirrors
+raiddev                 /dev/md0
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdb1
+raid-disk               0
+device                  /dev/sdc1
+raid-disk               1
+
+raiddev                 /dev/md1
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdd1
+raid-disk               0
+device                  /dev/sde1
+raid-disk               1
+
+raiddev                 /dev/md2
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdf1
+raid-disk               0
+device                  /dev/sdg1
+raid-disk               1
+
+raiddev                 /dev/md3
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdh1
+raid-disk               0
+device                  /dev/sdi1
+raid-disk               1
+
+## Stripe (Main RAID-10)
+raiddev                 /dev/md4
+raid-level              0
+nr-raid-disks           4
+chunk-size              32
+persistent-superblock   1
+device                  /dev/md0
+raid-disk               0
+device                  /dev/md1
+raid-disk               1
+device                  /dev/md2
+raid-disk               2
+device                  /dev/md3
+raid-disk               3
+</pre>
+
+<p>
+If you have installed the <code>raidtools</code> package, you can use <code>mkraid</code> to fire
+up the RAID and let it get building. <b>Note:</b> The rebuild can take a while. You
+can check on the status by running <code>cat /proc/mdstat</code>.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">mkraid /dev/md0 /dev/md1 /dev/md3
+mkraid /dev/md4
+</pre>
+</div>
+
+<p>
+Once the RAID is done building, you can add it as a physical volume for LVM
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">pvcreate /dev/md4
+</pre>
+</div>
+
+<p>
+and create the volume and logical groups.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">vgcreate vg01 /dev/md4
+lvcreate -L 20G -n mail vg01
+</pre>
+</div>
+
+<p>
+That will create a 20GB logical volume. You can create a logical volume that
+uses all of the space on the volume group but it takes an extra to get the
+number of physical entries on the volume.
+</p>
+
+<pre class="example">
+$ vgdisplay vg01 | grep PE
+  PE Size               4.00 MB
+  Total PE              17393
+  Alloc PE / Size       0 / 0 GB
+  Free  PE / Size       17393 / 67.94 GB
+</pre>
+
+<p>
+Then use the first number on the <code>Free PE / Size</code> line when you run
+<code>lvcreate</code>.
+</p>
+
+<p>
+lvcreate -l 17393 -n mail vg01
+</p>
+
+<p>
+<b>Note:</b> That's a lower case <code>l</code> instead of a capital <code>L</code> to let <code>lvcreate</code>
+know that you are spcifying the size in PEs and not bytes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Create the gfs</h2>
+<div class="outline-text-2" id="text-5">
+<div class="org-src-container">
+
+<pre class="src src-sh">gfs_mkfs -p lock_dlm -t mailfs:maildirs -j 4 /dev/vg01/mail
+</pre>
+</div>
+
+<p>
+<b>Note:</b> <code>mailfs</code> must match the cluster name from cluster.conf.
+</p>
+</div>
+</div>
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Enable Services on Boot</h2>
+<div class="outline-text-2" id="text-6">
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #00ffff;">for</span> serv<span style="color: #00ffff;"> in</span> ntp-client ntpd ccsd cman fenced clvmd gfs gnbd-srv gnbd-client;
+<span style="color: #00ffff;">do</span>
+  rc-update add $<span style="color: #eedd82;">serv</span> default
+<span style="color: #00ffff;">done</span>
+</pre>
+</div>
+
+<p>
+<b>Note:</b> Clients can omit the <code>gnbd-srv</code> service.
+</p>
+</div>
+</div>
+<div id="outline-container-7" class="outline-2">
+<h2 id="sec-7"><span class="section-number-2">7</span> gnbd Configuration</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+Both clients and servers use <code>/etc/gnbdtab</code>. The file uses four columns. The
+first is the type of record this is; either <code>import</code> or <code>export</code>. The
+second column, host, is only used by the <code>import</code> type. It specifies the
+servers to import gnbd mounts from. The last two columns are used by the
+<code>export</code> type. The first gives a name to the export. It must be unique
+across your systems because, when imported, it will show up as <code>/dev/gnbd/
+name</code> on the client machines. (You can do multipath with gnbd but I'm going
+to get into that at this time.) The forth, and final column, is the device (or
+file path) to export.
+</p>
+</div>
+
+<div id="outline-container-7-1" class="outline-3">
+<h3 id="sec-7-1"><span class="section-number-3">7.1</span> Server</h3>
+<div class="outline-text-3" id="text-7-1">
+</div><div id="outline-container-7-1-1" class="outline-4">
+<h4 id="sec-7-1-1"><span class="section-number-4">7.1.1</span> /etc/gnbdtab</h4>
+<div class="outline-text-4" id="text-7-1-1">
+<pre class="example">
+# type          host            name            device
+export          NOTUSED         maildirs        /dev/vg01/mail
+</pre>
+
+<p>
+<b>Note:</b> It's possible for the server to import devices that it is
+exporting. Add the client line (below) but set the host to <code>localhost</code>
+or <code>127.0.0.1</code>.  You will also need to make a small change to
+<code>/etc/init.d/gnbd-client</code> because Gentoo tries to start the client
+before the server. Edit <code>/etc/init.d/gnbd-client</code> and add
+</p>
+
+<pre class="example">
+need gnbd-srv
+</pre>
+
+<p>
+to <code>depend()</code>. The entire block should look something like this:
+</p>
+
+<pre class="example">
+depend() {
+        use dns logger
+        need net
+        need fenced
+        need gnbd-srv
+}
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-7-2" class="outline-3">
+<h3 id="sec-7-2"><span class="section-number-3">7.2</span> Clients</h3>
+<div class="outline-text-3" id="text-7-2">
+</div><div id="outline-container-7-2-1" class="outline-4">
+<h4 id="sec-7-2-1"><span class="section-number-4">7.2.1</span> /etc/gnbdtab</h4>
+<div class="outline-text-4" id="text-7-2-1">
+<pre class="example">
+# type          host            name            device
+import          gndb_server       NOTUSED         NOTUSED
+</pre>
+</div>
+</div>
+<div id="outline-container-7-2-2" class="outline-4">
+<h4 id="sec-7-2-2"><span class="section-number-4">7.2.2</span> /etc/fstab</h4>
+<div class="outline-text-4" id="text-7-2-2">
+<pre class="example">
+/dev/gnbd/maildirs    /var/mail/virtual    gfs        noatime    0 0
+</pre>
+
+<p>
+<b>Note:</b> <code>maildirs</code> (in <code>/dev/gnbd/maildirs</code>) is the name of the gnbd export from
+above.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="outline-container-8" class="outline-2">
+<h2 id="sec-8"><span class="section-number-2">8</span> Sources</h2>
+<div class="outline-text-2" id="text-8">
+<ul class="org-ul">
+<li><a href="http://sources.redhat.com/cluster/doc/usage.txt">http://sources.redhat.com/cluster/doc/usage.txt</a>
+</li>
+</ul>
+</div>
+</div>

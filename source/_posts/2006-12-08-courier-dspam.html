@@ -1,0 +1,616 @@
+---
+layout: post
+title: Courier and dspam
+date: 2006-12-08 14:34
+comments: true
+categories: [courier, dspam]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2006-12-08 Fri 14:34]</span></span></i>
+</p>
+
+<p>
+I currently use SpamAssassin on the mail cluster at work and it works pretty
+well. Unfortunately, it doesn't work well enough according to many of our
+customers and, more importantly, my boss. So, I worked out this way to use
+dspam and SpamAssassin.
+</p>
+
+<p>
+"Why use both?" you might ask. The answer is "I don't, really." What I do is
+provide dspam as an opt-in service and leave SpamAssassin as the default
+filter for those that don't want to be bothered with the reporting that dspam
+requires.
+</p>
+
+<p>
+Some users don't want to be troubled with reporting spam or false positives or
+they really dislike the <code>!DSPAM</code> tag that's added to messages filtered with
+dspam but they still want some measure of spam filtering. This setup provides
+that.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Needed Ports</h2>
+<div class="outline-text-2" id="text-1">
+<ul class="org-ul">
+<li><code>databases/mysql41-server</code> You only need this if you want to use MySQL as
+the storage driver and have the server on the same box.
+</li>
+<li><code>databases/mysql41-client</code> You only need this if you want to use MySQL as
+the storage driver.
+</li>
+</ul>
+
+<p>
+You might have noticed that mail/dspam is not on that list. That is because,
+at this point, the port is not general enough for what I want to do. I suppose
+I could change that, but I haven't gotten around to it yet.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Building dspam</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Before you go any farther, be sure you have read <a href="http://www.nuclearelephant.com/projects/dspam/#documentation">the dspam documentation</a>.
+</p>
+
+<p>
+Download the latest version of dspam from <a href="http://www.nuclearelephant.com/projects/dspam/#download">the dspam download page</a>.
+</p>
+
+<pre class="example">
+./configure
+</pre>
+
+<p>
+<b>Note:</b> The complete list of options for configure can seen by running
+ <code>./configure &#x2013;help</code>.
+</p>
+
+<p>
+Here are the options I used when building dspam. I'll explain them in more
+detail below.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">./configure <span style="color: #ffa07a;">\</span>
+        --bindir=/usr/local/dspam/bin <span style="color: #ffa07a;">\</span>
+        --sbindir=/usr/local/dspam/sbin <span style="color: #ffa07a;">\</span>
+        --with-dspam-group=courier <span style="color: #ffa07a;">\</span>
+        --with-storage-driver=mysql_drv <span style="color: #ffa07a;">\</span>
+        --with-mysql-includes=/usr/local/include/mysql <span style="color: #ffa07a;">\</span>
+        --with-mysql-libraries=/usr/local/lib/mysql <span style="color: #ffa07a;">\</span>
+        --enable-delivery-to-stdout <span style="color: #ffa07a;">\</span>
+        --with-userdir=/var/mail/virtual/dspam <span style="color: #ffa07a;">\</span>
+        --enable-large-scale <span style="color: #ffa07a;">\</span>
+        --enable-alternative-bayesian <span style="color: #ffa07a;">\</span>
+        --enable-spam-delivery <span style="color: #ffa07a;">\</span>
+        --enable-homedir-dotfiles <span style="color: #ffa07a;">\</span>
+        --enable-opt-in <span style="color: #ffa07a;">\</span>
+        --enable-virtual-users <span style="color: #ffa07a;">\</span>
+        --enable-whitelist <span style="color: #ffa07a;">\</span>
+        --enable-source-address-tracking <span style="color: #ffa07a;">\</span>
+        --bindir=/usr/local/dspam/bin <span style="color: #ffa07a;">\</span>
+        --sbindir=/usr/local/dspam/sbin
+<span style="color: #ff7f24;">#        </span><span style="color: #ff7f24;">--enable-debug</span>
+<span style="color: #ff7f24;">#        </span><span style="color: #ff7f24;">--enable-verbose-debug</span>
+</pre>
+</div>
+
+
+<p>
+When I build apps by hand instead of via the ports, I like to put them in a
+seperate directory under <code>/usr/local</code>. Feel free to leave out <code>&#x2013;bindir</code> and
+<code>&#x2013;sbindir</code> to have dspam install itself under <code>/usr/local/{bin,sbin}</code>.
+</p>
+
+<pre class="example">
+--with-dspam-group=courier
+</pre>
+
+<p>
+Maildrop runs as group courier. I needed to set this to let the courier group
+run dspam.
+</p>
+
+<pre class="example">
+--with-storage-driver=mysql_drv
+--with-mysql-includes=/usr/local/include/mysql
+--with-mysql-libraries=/usr/local/lib/mysql
+</pre>
+
+<p>
+I'm using MySQL to store account information for dspam. <b>Note:</b> The
+FreeBSD port puts the MySQL headers and libraries in
+<code>/usr/local/include/mysql</code> and <code>/usr/local/lib/mysql</code>,
+respectively. You may need to adjust them for your setup.
+</p>
+
+<pre class="example">
+--enable-delivery-to-stdout
+--enable-spam-delivery
+</pre>
+
+<p>
+dspam, by default, can do it's own delivery and will quarantine spam when it
+finds it. I already quarantine spam with SpamAssassin in each user's Spam
+folder, and I want to treat dspam detected spam the same way. So, in order to
+allow maildrop to do the quarantine, we need to tell dspam to deliver all
+mail, spam or ham, to standard out.
+</p>
+
+<pre class="example">
+--with-userdir=/var/mail/virtual/dspam
+</pre>
+
+<p>
+This is the directory where dspam will store much of its working information.
+This can be where ever you want. I put it on the NFS share for the mail dirs
+that I share to the nodes in my mail cluster.
+</p>
+
+<pre class="example">
+--enable-large-scale
+</pre>
+
+<p>
+This changes how dspam organizes the files in the userdir defined above.
+</p>
+
+<pre class="example">
+--enable-alternative-bayesian
+</pre>
+
+<p>
+I enabled the alternative baysian to help determine what messages are spam. It
+is very important to read the docs before choosing which statistical methods
+to use. Choosing the wrong one (or wrong combination) can really screw over
+your spam detection if you're not careful.
+</p>
+
+<pre class="example">
+--enable-homedir-dotfiles
+</pre>
+
+<p>
+I want to allow users to opt-in or opt-out by creating file in their home
+directory. At least, that's the idea. This didn't work for me with maildrop
+and virtual users. I'm still trying to figure out why. If you know, let me
+know and I'll update this page.
+</p>
+
+<pre class="example">
+--enable-opt-in
+</pre>
+
+<p>
+I require my users to opt-in to dspam because of the delay in catching spam
+due to training the filter and because there is no explicit whitelist. Do not
+include this if you want dspam on by default.
+</p>
+
+<pre class="example">
+--enable-virtual-users
+</pre>
+
+<p>
+Turn this on if you are using virtual users.
+</p>
+
+<pre class="example">
+--enable-whitelist
+</pre>
+
+<p>
+My biggest (and its not that big really) complaint about dspam is that it
+doesn't have whitelists. This allows for automatic whitelisting of address
+under certain conditions.
+</p>
+
+<pre class="example">
+--enable-source-address-tracking
+</pre>
+
+<p>
+I turned this on because, at some point, I want to some analysis of spam
+addresses. Feel free to leave this off.
+</p>
+
+<pre class="example">
+--enable-debug
+--enable-verbose-debug
+</pre>
+
+<p>
+These are useful when for debugging when you are first setting up dspam. You
+should not use them in when you deploy in a production environment.
+</p>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Build and Install</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Run <code>make &amp;&amp; make install</code> in <code>build</code> and install dspam.
+</p>
+
+<p>
+When you are testing the global maildrop filter, you may want to build with
+<code>&#x2013;enable-opt-in</code> and opt-in your test accounts. This way you can verify that
+the whole system works without messing with your users.
+</p>
+</div>
+
+<div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> Configuration</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+dspam has very little post-build configuration, since ost of the configuration
+happened at build time.
+</p>
+</div>
+</div>
+<div id="outline-container-3-2" class="outline-3">
+<h3 id="sec-3-2"><span class="section-number-3">3.2</span> trusted.users</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+This file contains the list of users that can suid when running dspam.
+</p>
+
+<pre class="example">
+root
+courier
+smmsp
+daemon
+mailnull
+</pre>
+</div>
+</div>
+<div id="outline-container-3-3" class="outline-3">
+<h3 id="sec-3-3"><span class="section-number-3">3.3</span> mysql.data</h3>
+<div class="outline-text-3" id="text-3-3">
+<p>
+This file contains the information that dspam needs to connect to MySQL. The
+format is as follows. See <code>tools.mysql_drv/README</code> in the dspam source package
+for details.
+</p>
+
+<pre class="example">
+HOSTNAME
+PORT
+USERNAME
+PASSWORD
+DATABASE
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Setup MySQL</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+The dspam package comes with SQL files that you can use to setup MySQL
+in <code>tools.mysql_drv/</code>. You should take this opportunity to read the
+<code>README</code> file in that directory.
+</p>
+
+<p>
+dspam now ships with two mysql_ojects files optimized for spam and speed. I
+use the speed optimized file but modify it to use INNODB tables instead of
+MyISAM tables.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">cd</span> tools.mysql_drv/
+mysql -u root -p DATABASE &lt; mysql_objects.sql
+mysql -u root -p DATABASE &lt; virtual_users.sql
+</pre>
+</div>
+
+<p>
+<b>Note:</b> The last command is only required if you are using virtual users.
+</p>
+
+<p>
+If dspam is going to use a different username than to access the dspam_*
+tables, you will need to create the user and give it access to those tables
+with the grant command.
+</p>
+</div>
+</div>
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Testing dspam</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+See section 1.2 of the README for testing instructions.
+</p>
+</div>
+</div>
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> maildroprc</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+dspam is all set, now it's time to add it to maildroprc. Below, is a sample
+maildroprc.
+</p>
+
+<pre class="example">
+import SENDER
+import HOME
+
+if ($SENDER ne "")
+{
+         FROM=$SENDER
+}
+else
+{
+         FROM="unknown"
+}
+
+CLEAN_FROM=escape($FROM);
+# Spam Filter
+xfilter "/usr/local/dspam/bin/dspam --user $LOGNAME"
+
+if (/^X-DSPAM-Result:/:h)
+{
+}
+else
+{
+         xfilter "/usr/local/bin/spamc -u $LOGNAME"
+}
+
+if (/^X-Spam-Status: Yes/:h || /^X-DSPAM-Result: Spam/:h)
+{
+         # See if the Spam folder exists.
+         `test -d "./Maildir/.Spam/"`
+         if ($RETURNCODE != 0)
+         {
+                 # If not, copy one from the pre-existing skel directory.
+                 `cp -Rp /usr/local/etc/courier/skel/Maildir/.Spam ./Maildir/`
+         }
+         to "./Maildir/.Spam/."
+}
+</pre>
+
+<p>
+<b>Note:</b> For some reason my system is having problems with nots. Hence,
+the jacked-up if-else in that file. I would expect a simple <code>if (!
+/^X-DSPAM-Result:/:h)</code> to work, but it doesn't.
+</p>
+
+<p>
+The observant reader will notice that if dspam runs (and adds it's
+<code>X-DSPAM-Result</code> header), spamc doesn't run. This is intentional. I originally
+had <code>if (/^X-DSPAM-Result: Innocent/:h)</code> which would run spamc if dspam didn't
+think the message was spam. I found, that once dspam was trained, spamc never
+found different spam.
+</p>
+
+<p>
+It also caused problems with the training process for dspam. Let me explain
+with an example. Suppose a new dspam user gets a message that dspam thinks is
+innocent but SpamAssassin sees as spam. The message gets tagged as spam with
+the X-Spam-Status: Yes header and maildrop happily moves the message to the
+Spam folder. Our user is happy because the message is caught and ignores the
+message (or deletes it). What our user doesn't know, is that dspam didn't
+catch the message and so scores it as innocent. That will raise the
+probability that similar messages are are treated as innocent, thus making
+dspam less effective. (The whole reason for putting dspam in place was that is
+was more effective than SpamAssassin.)
+</p>
+
+<p>
+I set it up this way for another reason, too. As I stated earlier, my users
+have to opt-in to dspam. This setup provides spam filtering through
+SpamAssassin for those users that choose not to use dspam. It also you to
+still use SpamAssassin as a default scanner if your users choose to opt-out of
+an on-by-default dspam setup.
+</p>
+</div>
+</div>
+<div id="outline-container-7" class="outline-2">
+<h2 id="sec-7"><span class="section-number-2">7</span> Aliases</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+Each dspam user will need aliases setup to report spam and false positives to.
+I use <code>.courier</code> files in the user's home directory.
+</p>
+</div>
+
+<div id="outline-container-7-1" class="outline-3">
+<h3 id="sec-7-1"><span class="section-number-3">7.1</span> $HOME/.courier-spam</h3>
+<div class="outline-text-3" id="text-7-1">
+<p>
+Users report spam by sending it to a special alias on their account created by
+adding -spam to the user name portion of their address. E.g. user@domain would
+send to user-spam@domain.
+</p>
+
+<pre class="example">
+|/usr/local/dspam/bin/dspam --user user@domain --addspam
+</pre>
+</div>
+</div>
+<div id="outline-container-7-2" class="outline-3">
+<h3 id="sec-7-2"><span class="section-number-3">7.2</span> $HOME/.courier-fp</h3>
+<div class="outline-text-3" id="text-7-2">
+<p>
+In the case of false positives, users report it by sending it to a another
+alias on their account created by adding -fp to the user name portion of their
+address. E.g. user@domain would send to user-fp@domain.
+</p>
+
+<pre class="example">
+|/usr/local/dspam/bin/dspam --user user@domain --falsepositive
+</pre>
+
+<p>
+The suffixes can, of course, be changed by changing the name of the .courier
+file.
+</p>
+
+<p>
+It should be possible to setup a global aliases instead of aliases in users'
+home directories. Simply create <code>/usr/local/etc/courier/aliasdir/.courier-spam</code>
+with the following (untested) line.
+</p>
+
+<pre class="example">
+|/usr/local/dspam/bin/dspam --user $LOCAL@$HOST --addspam
+</pre>
+
+<p>
+Or you can create a spam user in each domain you host with a .courier-default
+that looks like the following.
+</p>
+
+<pre class="example">
+|/usr/local/dspam/bin/dspam --user $EXT@$HOST --addspam
+</pre>
+
+<p>
+The false positive alias would be similar.
+</p>
+
+<p>
+<b>Note:</b> Don't forget to run <code>makealiases</code> if you update the global alias file.
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-8" class="outline-2">
+<h2 id="sec-8"><span class="section-number-2">8</span> Testing Courier, maildrop and dspam</h2>
+<div class="outline-text-2" id="text-8">
+<p>
+The nicest way I found to test this setup was to build dspam with
+<code>&#x2013;enable-opt-in</code> and then opt-in my test accounts. This way you can test your
+production setup without screwing up mail delivery for the rest of your users.
+When you're satisfied that everything is working properly, you can then
+rebuild dspam without <code>&#x2013;enable-opt-in</code> and you're good to go.
+</p>
+</div>
+</div>
+<div id="outline-container-9" class="outline-2">
+<h2 id="sec-9"><span class="section-number-2">9</span> dspam Maintenance</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+dspam comes with a couple of tools to keep your database clean: <code>dspam_clean</code>
+and <code>tools.mysql_drv/purge.sql</code>. These tools are dscribed in the dspam
+documentation and should be set to run periodically as described in those
+docs.
+</p>
+
+<p>
+I modified <code>purge.sql</code> to elimitate some locking issues I was having and, in the
+process, made it 3 times faster. Basically, I combined the three deletes on
+<code>dspam_token_data</code> into one.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sql">set @a=to_days(current_date());
+
+lock table dspam_token_data write;
+delete from dspam_token_data
+   where
+    ((innocent_hits*2) + spam_hits &lt; 5 and @a-to_days(last_hit) &gt; 15)
+    or (innocent_hits = 1 and @a-to_days(last_hit) &gt; 7)
+    or (@a-to_days(last_hit) &gt; 20)
+   ;
+unlock table;
+
+lock table dspam_signature_data write;
+delete from dspam_signature_data
+   where @a-to_days(created_on) &gt; 14;
+unlock tables;
+</pre>
+</div>
+
+<p>
+Well, the locking issues went away (because I was locking the tables) but I
+had more problems. The delete was taking so long to run that the system kept
+maxing out the maximum number of connections. To fix this, I wrote a perl
+script that deletes tokens and signatures 100 at a time and sleeps for a
+couple of seconds between deletes. That gives enough time for other things to
+happen between deletes. (You can see the SQL from above on lines 21-26 and
+30-32.)
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-perl"><span class="linenr"> 1: </span><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">!/usr/local/bin/perl</span>
+<span class="linenr"> 2: </span><span style="color: #00ffff;">use</span> <span style="color: #7fffd4;">warnings</span>;
+<span class="linenr"> 3: </span><span style="color: #00ffff;">use</span> <span style="color: #7fffd4;">strict</span>;
+<span class="linenr"> 4: </span>
+<span class="linenr"> 5: </span><span style="color: #00ffff;">use</span> <span style="color: #7fffd4;">DBI</span>;
+<span class="linenr"> 6: </span>
+<span class="linenr"> 7: </span><span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">db_name</span> = <span style="color: #ffa07a;">'Accounts'</span>;
+<span class="linenr"> 8: </span><span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">db_host</span> = <span style="color: #ffa07a;">'localhost'</span>;
+<span class="linenr"> 9: </span><span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">db_user</span> = <span style="color: #ffa07a;">'root'</span>;
+<span class="linenr">10: </span><span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">db_pass</span> = <span style="color: #ffa07a;">'secret'</span>;
+<span class="linenr">11: </span>
+<span class="linenr">12: </span><span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">dbh</span> = DBI-&gt;connect(<span style="color: #ffa07a;">"DBI:mysql:"</span>.$<span style="color: #eedd82;">db_name</span>.<span style="color: #ffa07a;">':'</span>.$<span style="color: #eedd82;">db_host</span>,
+<span class="linenr">13: </span>        $<span style="color: #eedd82;">db_user</span>,
+<span class="linenr">14: </span>        $<span style="color: #eedd82;">db_pass</span>);
+<span class="linenr">15: </span>
+<span class="linenr">16: </span><span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">now</span> = <span style="color: #ffa07a;">'to_days(current_date())'</span>;
+<span class="linenr">17: </span>
+<span class="linenr">18: </span><span style="color: #98fb98;">my</span> @<span style="color: #eedd82; text-decoration: underline;">sql</span> = ();
+<span class="linenr">19: </span>
+<span class="linenr">20: </span>push @<span style="color: #eedd82; text-decoration: underline;">sql</span>, &lt;&lt;<span style="color: #ffa07a;">"TOKEN"</span>;
+<span class="linenr">21: </span>delete LOW_PRIORITY from dspam_token_data
+<span class="linenr">22: </span>where
+<span class="linenr">23: </span>   ((innocent_hits*<span style="color: #eedd82;">2</span>) + spam_hits &lt; 5 and $<span style="color: #eedd82;">now</span>-to_days(last_hit) &gt; 15)
+<span class="linenr">24: </span>   or (innocent_hits = 1 and $<span style="color: #eedd82;">now</span>-to_days(last_hit) &gt; 7)
+<span class="linenr">25: </span>   or ($<span style="color: #eedd82;">now</span>-to_days(last_hit) &gt; 20)
+<span class="linenr">26: </span>limit 100
+<span class="linenr">27: </span>TOKEN
+<span class="linenr">28: </span>    ;
+<span class="linenr">29: </span>push @<span style="color: #eedd82; text-decoration: underline;">sql</span>, &lt;&lt; <span style="color: #ffa07a;">"SIG"</span>;
+<span class="linenr">30: </span>delete LOW_PRIORITY from dspam_signature_data
+<span class="linenr">31: </span>where $<span style="color: #eedd82;">now</span>-to_days(created_on) &gt; 14
+<span class="linenr">32: </span>limit 100
+<span class="linenr">33: </span>SIG
+<span class="linenr">34: </span>    ;
+<span class="linenr">35: </span>
+<span class="linenr">36: </span><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">print join "\n", @sql;</span>
+<span class="linenr">37: </span>
+<span class="linenr">38: </span><span style="color: #00ffff;">foreach</span> <span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">sql</span> (@<span style="color: #eedd82; text-decoration: underline;">sql</span>) {
+<span class="linenr">39: </span>    <span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">tot</span> = 0;
+<span class="linenr">40: </span>    <span style="color: #00ffff;">while</span> (<span style="color: #98fb98;">my</span> $<span style="color: #eedd82;">rv</span> = $<span style="color: #eedd82;">dbh</span>-&gt;<span style="color: #00ffff;">do</span>($<span style="color: #eedd82;">sql</span>)) {
+<span class="linenr">41: </span><span style="color: #00ffff;">if</span> ($<span style="color: #eedd82;">rv</span> &lt;= -1) {
+<span class="linenr">42: </span>    warn $<span style="color: #eedd82;">dbh</span>-&gt;errstr, <span style="color: #ffa07a;">"\n"</span>;
+<span class="linenr">43: </span>    <span style="color: #00ffff;">last</span>;
+<span class="linenr">44: </span>} <span style="color: #00ffff;">elsif</span> ($<span style="color: #eedd82;">rv</span> == 0) {
+<span class="linenr">45: </span>    <span style="color: #00ffff;">last</span>;
+<span class="linenr">46: </span>}
+<span class="linenr">47: </span><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">print $tot += $rv;</span>
+<span class="linenr">48: </span>sleep 2;
+<span class="linenr">49: </span>    }
+<span class="linenr">50: </span>    <span style="color: #ff7f24;">#print "\n";</span>
+<span class="linenr">51: </span>}
+</pre>
+</div>
+
+<p>
+One thing you might have noticed is that I have removed the locks. Part of the
+reason is that I moved to INNODB tables which do row-level locking so it's not
+as much of a problem. Another part is that I changed the deletes to be low
+priority so that they don't interfere with the normal mail flow. (See lines 21
+and 30.) Finally, if the script fails to acquire a lock, it simply tries
+again. (I occasionally see a failed lock or two on the dspam_signature_data
+table but I haven't figured out how to make those go away. As I said, it's not
+a problem but it doesn't feel "clean.")
+</p>
+
+<p>
+If you want to spend the time, you can add an order by last_hit clause to the
+SQL commands so that the oldest tokens and signatures are deleted first. I
+didn't feel the need to spend CPU and memory on it though.
+</p>
+</div>
+</div>

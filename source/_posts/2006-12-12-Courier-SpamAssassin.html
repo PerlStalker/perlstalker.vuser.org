@@ -1,0 +1,147 @@
+---
+layout: post
+title: Courier and SpamAssassin
+date: 2005-01-22 13:36
+comments: true
+categories: [courier, spamassassin]
+---
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2006-12-12 Tue 14:24]</span></span></i>
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Needed FreeBSD Ports</h2>
+<div class="outline-text-2" id="text-1">
+<ul class="org-ul">
+<li><code>lang/perl5 SpamAssassin</code> requires Perl 5.6 or higher. <b>Note:</b> Remeber to run
+use.perl ports before builing SpamAssassin.
+</li>
+<li><code>mail/p5-Mail-SpamAssassin</code>
+</li>
+<li><code>databases/mysql40-server</code>
+</li>
+<li><code>databases/p5-DBD-mysql</code> Needed so SpamAssassin can talk to MySQL
+</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> /usr/local/etc/mail/spamassassin/local.cf</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+I like to store users' settings in a MySQL database. See the
+<a href="http://www.spamassassin.org/dist/sql/README">SpamAssassin SQL README</a> for instructions on setting that up.
+</p>
+
+<pre class="example">
+user_scores_dsn                 DBI:mysql:Accounts:localhost
+user_scores_sql_username        sa
+user_scores_sql_password        &lt;password&gt;
+user_scores_sql_table           SA_userprefs
+</pre>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> MySQL Table</h2>
+<div class="outline-text-2" id="text-3">
+<div class="org-src-container">
+
+<pre class="src src-sql">CREATE TABLE SA_userprefs (
+         username        varchar(128)    default <span style="color: #ffa07a;">''</span>      NOT NULL,
+         preference      varchar(30)     default <span style="color: #ffa07a;">''</span>      NOT NULL,
+         value           varchar(100)    default <span style="color: #ffa07a;">''</span>      NOT NULL,
+         prefid          int(11)         UNSIGNED        NOT NULL
+auto_increment,
+         PRIMARY KEY (prefid),
+         INDEX (username)
+) COMMENT = "Accounts<span style="color: #ffa07a;">' SpamAssassin preferences.";</span>
+
+<span style="color: #ffa07a;">GRANT SELECT,DELETE,INSERT,UPDATE on Accounts.* to</span>
+<span style="color: #ffa07a;">         sa IDENTIFIED by '</span>&lt;passwd&gt;<span style="color: #ffa07a;">';</span>
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> /usr/local/etc/rc.d/spamd.sh</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+You need to tell spamd to look for user settings in the database.
+</p>
+
+<pre class="example">
+${PREFIX}/bin/spamd -x -d -q -u courier
+</pre>
+</div>
+</div>
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> /usr/local/etc/maildroprc</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+This step can be skipped if you are not using maildrop or do not want to
+quarantine Spam for your users.
+</p>
+
+<p>
+Add this to maildroprc. <b>Note:</b> I create the Spam folder from a precreated
+folder if it doesn't exist. You could use maildirmake to do it instead.
+</p>
+
+<pre class="example">
+# Spam Filter
+import RECIPIENT
+
+xfilter "/usr/local/bin/spamc -u $RECIPIENT"
+
+if (/^X-Spam-Status: Yes/:h)
+{
+`test -d "./Maildir/.Spam/"`
+        if ($RETURNCODE != 0)
+        {
+                # If not, copy one from the pre-existing skel directory.
+                `cp -Rp /usr/local/etc/courier/skel/Maildir/.Spam ./Maildir/`
+        }
+        to "./Maildir/.Spam/."
+}
+</pre>
+</div>
+</div>
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Rejecting High Scores</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+You may also want to reject messages that score over a certain level. Here's
+how you do it.
+</p>
+
+<pre class="example">
+MAX_SPAM=15
+
+# Spam Filter
+import RECIPIENT
+
+xfilter "/usr/local/bin/spamc -u $RECIPIENT"
+
+if (/^X-Spam-Status: Yes, score=!-*[:digit:]+\.[:digit:]+! .*/:h)
+{
+        # Extract the spam score.
+        HITS=$MATCH2
+        #       logfile "/var/log/maildrop.log"
+        #       log "Hits: $HITS 0: $MATCH 1: $MATCH1 2: $MATCH2"
+
+        if ($HITS &gt;= $MAX_SPAM)
+        {
+                # Set to 0, then there's no quota. Needed to deliver to
+                # this glorious spam drop box.
+                MAILDIRQUOTA='0'
+                echo "Spam score on message from $CLEAN_FROM to $LOGNAME
+exceeds maximum value. ($HITS/$MAX_SPAM)"
+                EXITCODE=0
+                exit
+        }
+        to "./Maildir/.Spam/."
+}
+</pre>
+</div>
+</div>

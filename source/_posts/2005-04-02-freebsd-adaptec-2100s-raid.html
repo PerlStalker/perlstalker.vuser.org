@@ -1,0 +1,264 @@
+---
+layout: post
+title: FreeBSD Adaptec 2100S RAID
+date: 2005-04-02 14:18
+comments: true
+categories: [freebsd, adaptec]
+---
+
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-04-02 Sat 14:18]</span></span></i>
+</p>
+
+<p>
+Setting up the 2100S is actually pretty simple. Here's how I did it.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Configure your Kernel</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The 2100S uses the asr driver which is included in the GENERIC kernel,
+however, I take that out of my custom kernels since most of my machine do not
+have a RAID controller at all, so I added this line to my kernel config and
+rebuilt.
+</p>
+
+<pre class="example">
+device          asr             # DPT SmartRAID V, VI and Adaptec SCSI RAID
+</pre>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Install the Adaptec RAID Control Software</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+The CD that comes with the controller includes some software to control and
+configure the RAID. What bugs me is that, be default, it want's to install
+itself into <code>/usr/dpt</code> and I'm not really thrilled with installing third-party
+software in <code>/usr</code>. That's OK though, it's easy enough to install it in <code>/usr/</code>
+local by using the -p option to pkg_add.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">mount /cdrom
+pkg_add -p /usr/local/dpt /cdrom/package/FreeBSD/apps/sm/adptfbsd_314.tgz
+umount /cdrom
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Configure the RAID</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Now is the time to stop and make sure that you have your HDDs installed and
+ready. The drives need to be pristine, i.e. they cannot have any existing
+partitions, etc. and cannot have the same SCSI ID as the controller. (The
+2100S uses ID 7 by default.)
+</p>
+
+<p>
+It's probably a good idea to disable kern.securelevel before proceeding as
+well, as it may prevent the controller from accessing the drives properly.
+</p>
+
+<p>
+Now that everything is ready, it's time to create the array. Let's pretend
+that we have eight HDDs with IDs 1-6, 8 and 9 (remember, the controller is
+using ID 7), and we want to build a RAID-10 array.
+</p>
+
+<p>
+<b>Note:</b> I used raidutil to do the setup because I don't have X installed on that
+server. Feel free to use Storage Manager or Storage Manager Pro.
+</p>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Identify the Controller Address</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+We need the Adaptec address for the controller we're using for the RAID. In my
+case, the ID is d0. The ID will be used to tell raidutil which controller
+we're creating the RAID on.
+</p>
+
+<pre class="example">
+bash-2.05b# ./raidutil -L controller
+#  b0 b1 b2  Controller     Cache  FW    NVRAM     Serial     Status
+---------------------------------------------------------------------------
+d0 --        ADAP2100S      16MB   370F  CHNL 1.1  BBXXXXXXXXXOptimal
+</pre>
+</div>
+</div>
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Get the Adaptec Addresses for the HDDs</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+<code>raidutil</code> requires that you refer to your HDDs by their Adaptec addresses. You
+can get the the HDD addresses with the physical parameter to -L. Note: -c d0
+is what tells raidutil which controller to look at. Remember, d0 is the ID we
+got above.
+</p>
+
+<pre class="example">
+bash-2.05b# ./raidutil -c d0 -L physical
+Address    Type              Manufacturer/Model         Capacity  Status
+---------------------------------------------------------------------------
+d0b0t1d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t2d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t3d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t4d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t5d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t6d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t8d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t9d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+</pre>
+</div>
+</div>
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Build the RAID-10</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+Now it's time to build the RAID. The setup below creates the stripe across
+mirrored pairs. The + between addresses denotes the mirroring. You can mirror
+the drives in any order. What seemed a little weird to me was setting the RAID
+level (-l) to 1 but it works.
+</p>
+
+<p>
+<b>Note:</b> The raidutil man page that came on my CD seems to have an error when
+discussing RAID-10 configutation. From the man page:
+</p>
+
+<blockquote>
+<p>
+To create a RAID 10 configuration specify groups in pairs as follows:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-sh">raidutil -c c1 -l 1 -g c1t1d0,c1t2d0,c1t3d0,c1t4d0
+</pre>
+</div>
+</blockquote>
+
+<p>
+Notice that there are no + signs anywhere in that command to denote drive
+pairs.
+</p>
+
+<p>
+<b>Note:</b> -g must be the last option to the command. If it is not, your other
+options will not be applied.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">./raidutil -c d0 -l 1 -z 64 -g d0b0t1d0+d0b0t2d0,d0b0t3d0+d0b0t4d0,d0b0t5d0+d0b0t6d0,d0b0t8d0+d0b0t9d0
+</pre>
+</div>
+
+<p>
+You can use -L raid to watch the controller build the RAID. When it's done,
+you should see something like this.
+</p>
+
+<pre class="example">
+bash-2.05b# ./raidutil -c d0 -L raid   
+Address       Type              Manufacturer/Model      Capacity  Status
+---------------------------------------------------------------------------
+d0b0t1d0      RAID 0 (Striped)  ADAPTEC  RAID-10        70007MB   Optimal
+  d0b0t1d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Optimal
+   d0b0t1d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+   d0b0t2d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+  d0b0t3d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Optimal
+   d0b0t3d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+   d0b0t4d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+  d0b0t5d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Optimal
+   d0b0t5d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+   d0b0t6d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+  d0b0t8d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Optimal
+   d0b0t8d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+   d0b0t9d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+</pre>
+
+<p>
+You're Done
+</p>
+
+<p>
+Congratulations! You now have a working RAID. The RAID should be available as
+/dev/da0. You can now label and partition the RAID as you would for any other
+drive.
+</p>
+</div>
+</div>
+<div id="outline-container-7" class="outline-2">
+<h2 id="sec-7"><span class="section-number-2">7</span> Replacing a Failed Drive</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+I recently came in to the tune of the RAID controller's alarm going off. The
+server just kept chugging way without a hitch. I'm beginning to like RAID.
+</p>
+
+<pre class="example">
+cd /usr/local/dpt
+root@accounts dpt# ./raidutil -A
+#  b0 b1 b2    Controller      Alarm Status  Alarm Enable
+---------------------------------------------------------------------------
+d0 --          2100S           On            Enabled
+
+root@accounts dpt# ./raidutil -L physical | less
+Address    Type              Manufacturer/Model         Capacity  Status
+---------------------------------------------------------------------------
+d0b0t1d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Failed drive
+d0b0t2d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t3d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t4d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t5d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t6d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+d0b0t8d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Failed drive
+d0b0t9d0   Disk Drive (DASD) IBM      IC35L018UCPR15-0  17501MB   Optimal
+</pre>
+
+<p>
+It looks like I lost two drives. That's not good at all. However, this is
+still survivable. Replace the drives then run:
+</p>
+
+<pre class="example">
+./raidutil -c d0 -a rebuild d0b0t1d0
+</pre>
+
+<p>
+Now when you run raidutil -L raid you should be something like this:
+</p>
+
+<pre class="example">
+root@accounts dpt# ./raidutil -c d0 -L raid
+Address       Type              Manufacturer/Model      Capacity  Status
+---------------------------------------------------------------------------
+d0b0t1d0      RAID 0 (Striped)  ADAPTEC  RAID-10        70007MB   Reconstruct
+6%
+  d0b0t1d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Reconstruct
+   d0b0t1d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Replaced Drive
+   d0b0t2d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+  d0b0t3d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Reconstruct
+   d0b0t3d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+   d0b0t4d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+  d0b0t5d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Reconstruct
+   d0b0t5d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+   d0b0t6d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+  d0b0t8d0     RAID 1 (Mirrored) ADAPTEC  RAID-1         17501MB   Reconstruct
+   d0b0t8d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Replaced Drive
+   d0b0t9d0    Disk Drive (DASD) IBM      IC35L018UCPR15-17501MB   Optimal
+</pre>
+
+<p>
+This will eventually finish and you should be good to go again.
+</p>
+</div>
+</div>

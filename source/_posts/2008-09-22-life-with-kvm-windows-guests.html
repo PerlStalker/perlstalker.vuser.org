@@ -1,0 +1,86 @@
+---
+layout: post
+title: "Life with KVM: Windows Guests"
+date: 2008-09-22 21:05
+comments: true
+categories: [kvm, linux, microsoft, virtualization, windows-server-2003, windows-server-2008]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2008-09-22 Mon 21:05]</span></span></i>
+</p>
+
+<p>
+One of my criteria for choosing a virtualization platform is that it had to
+run Windows and Linux guests. Linux, of course, works out of the box on most
+VM hosts. Windows is a whole other story.
+</p>
+
+<p>
+The good news is that Windows Server 2003 and Server 2008 work just fine on
+KVM. There are, however, a few weird things that I've noticed so I thought I'd
+share some of them with you today.
+</p>
+
+<p>
+One of the oddest things I ran into is, I think, a Windows issue rather than a
+KVM one. KVM uses acpi to tell the guest to power down when you use the 
+system_powerdown command from the qemu monitor. No big deal, Windows does
+acpi. The catch is that Server 2008 ignores that command when someone is
+logged into the console; especially when the user has locked the console. That
+means that trying to gracefully shut down the machine (via the console or from
+a script) doesn't work if the user has locked the console.
+</p>
+
+<p>
+Since I'm the Windows server admin, I'm usually the one who is logged in so I
+can unlock the console and continue the shut down. Unfortunatly, I wrote a
+lovely little perl script to manage the VMs so I'm often stopping machines
+from a shell and haven't looked at the console and have no desire to do so.
+Generally, if I'm shutting a machine down from my script, it means that I'm
+shutting down several machines and really don't want to log into each of them.
+Again, I think this is a Windows thing rather than a KVM bug but it's
+something to watch out for.
+</p>
+
+<p>
+Next, let's look at NIC drivers. The default NIC in qemu/KVM is a 100baseT
+RealTek. It's a decent enough NIC but it's only 100 Mbps. You can enable the
+e1000 NIC when start the guest which gives you a 1 Gps Intel NIC but watch out
+for driver issues. One post I saw, which I can't find now, suggests that you
+should get the latest driver from Intel for this NIC to work properly.
+</p>
+
+<p>
+Good news for Server 2003 users. There is a virtio NIC driver for Server 2003
+and XP which should greatly improve network performance for those systems. I
+have heard rumors that it can be made to work with Server 2008 as well but I
+haven't tried it.
+</p>
+
+<p>
+I mentioned in the <a href="http://perlstalker.vuser.org/blog/2008/09/20/life-with-kvm-live-migration/">previous Life with KVM post</a> that live migration plays hell
+with your mouse in the virtual console. I have found no way of fixing the
+mouse tracking short of shutting the guest down and restarting it. Hardly an
+ideal solution.
+</p>
+
+<p>
+On the desktop side, I have a couple of guests running Vista and XP in SDL
+mode on my desktop. I use the Vista box for my "Windows workstation" so that I
+can use IE to get into those few sites that don't like Firefox. (Most of those
+sites are microsoft.com addresses. Go figure.) If you're going to run in SDL
+mode, I highly recommend the -no-quit flag when starting your guest. It
+prevents you from accidentally killing your guest by hitting the all too
+convenient 'X' in the corner of the window. Also take a look at the -alt-grab
+flag. It changes the console meta keys from ctrl-alt to ctrl-alt-shift which
+makes giving Windows the three finger salute a lot safer. (I rebooted my
+desktop a couple of times because I hit ctrl-alt-del to log in to Vista and
+the grab released when I hit ctrl-alt.)
+</p>
+
+<p>
+All that said, I have a handful of Server 2008 (and a Server 2003) guests
+running on my KVM cluster and they're working just beautifully. I have no
+hesitation recommending KVM as a virtualization platform for Windows Servers.
+However, you should test it out yourself and make sure it fits your needs.
+</p>

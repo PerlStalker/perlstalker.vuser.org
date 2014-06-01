@@ -1,0 +1,106 @@
+---
+layout: post
+title: RT in Emacs
+date: 2010-09-30 12:02
+comments: true
+categories: [RT, emacs]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2010-09-30 Thu 12:02]</span></span></i>
+</p>
+
+<p>
+There are a number of ways of using <a href="http://www.bestpractical.com/rt/">RT</a> from within emacs. A quick google
+search will find them. Here's what I use.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> RT</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+First, you'll need to snag a copy of the rt perl script from <code>/opt/rt3/bin/</code> or
+from the source package. This can go almost anywhere on your local system but
+I put it in <code>$HOME/bin/</code>. Make sure you make it executable.
+</p>
+
+<p>
+Next, create <code>$HOME/</code>.rtrc. This will contain the information rt needs to access
+your RT install.
+</p>
+
+<pre class="example">
+server https://rt.example.com/
+user your-user-name
+passwd super-secret-password
+</pre>
+
+<p>
+Test it out by running rt list. You should get a list of all open tickets for
+your account. If you leave out the passwd line, rt will prompt you for your
+password.
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> emacs</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Now to setup emacs. I use a couple of cool features of emacs: term-mode and
+emacs server. Term mode will allow you to run the rt shell within emacs. You
+could run it from emacs' shell mode but it doesn't work as well. The server
+allows you to run the command <code>emacsclient</code> and edit a file in whichever emacs
+instance started the server. I made all of this simple on myself by putting it
+in a file for emacs to load when needed. I put it in <code>$HOME/.emacs.d/rt</code>
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-emacs-lisp"><span style="color: #ff7f24;">;; </span><span style="color: #ff7f24;">rt mode</span>
+(add-to-list 'auto-mode-alist '(<span style="color: #ffa07a;">"rt\\.form"</span> . text-mode))
+(add-hook 'text-mode-hook 'flyspell-mode)
+
+<span style="color: #ff7f24;">;; </span><span style="color: #ff7f24;">start rt</span>
+(server-start)
+(term <span style="color: #ffa07a;">"/home/rbsmith/bin/rt"</span>)
+(term-pager-toggle)
+</pre>
+</div>
+
+<p>
+The first part loads tickets in text-mode and turns on flyspell-mode i.e.,
+spell check on the fly. You can leave out (term-pager-toggle) if you like. It
+simply paginates the output from rt much like less does.
+</p>
+
+<p>
+Now create a little wrapper script for starting emacs and rt. I called it
+<code>$HOME/bin/rt-client</code>. Make sure you make it executable.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #ff7f24;">#</span><span style="color: #ff7f24;">!/bin/</span><span style="color: #00ffff;">bash</span>
+
+<span style="color: #b0c4de;">export</span> <span style="color: #eedd82;">EDITOR</span>=emacsclient
+emacs -l $<span style="color: #eedd82;">HOME</span>/.emacs.d/rt
+</pre>
+</div>
+
+<p>
+You can use the command <code>help</code> from the <code>rt&gt;</code> prompt to get all sort of
+information on how to actually use the RT shell.
+</p>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Editing Tickets</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+When you run a command to edit a ticket, the ticket will load up in the emacs
+window. The message is in RFC 822 format. If you have a field that needs to
+span multiple lines (like text) every line, including blank lines, needs to
+start with a space. When you're done editing a ticket, type <code>C-x C-#</code> to close
+the editor and submit the changes.
+</p>
+</div>
+</div>

@@ -1,0 +1,271 @@
+---
+layout: post
+title: Using AMaViS-ng with Courier
+date: 2005-02-22 08:33
+comments: true
+categories: [amavis, courier]
+---
+<p>
+<i>Originally posted on <span class="timestamp-wrapper"><span class="timestamp">[2005-02-22 Tue 08:33]</span></span></i>
+</p>
+
+<p>
+<b>Note:</b> I have switched to amavisd-new. These docs should still work
+ but I am no longer maintaining them. See <a href="http://perlstalker.vuser.org/blog/2005/08/30/courier-amavisd-new/">Courier with Amavisd-new</a>.
+</p>
+
+<p>
+These intructions walk you through the setup of AMaViS-ng with the
+F-Prot virus scanner from Frisk. It should be fairly trivial to use
+another virus scanner, such as clamav, instead.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Needed Ports</h2>
+<div class="outline-text-2" id="text-1">
+<ul class="org-ul">
+<li>archivers/lha
+</li>
+<li>archivers/unarj or archivers/arj
+</li>
+<li>archivers/unrar or archivers/rar
+</li>
+<li>archivers/zoo or archivers/unzoo
+</li>
+<li>archivers/arc
+</li>
+<li>archivers/p5-Compress-Zlib
+</li>
+<li>archivers/p5-Archive-Tar
+</li>
+<li>archivers/p5-Archive-Zip
+</li>
+<li>archivers/bzip2
+</li>
+<li>devel/p5-IO-stringy
+</li>
+<li>converters/p5-MIME-Base64
+</li>
+<li>converters/p5-Convert-UUlib
+</li>
+<li>converters/p5-Convert-TNEF
+</li>
+<li>mail/p5-MIME-Tools
+</li>
+<li>mail/p5-Mail-Tools
+</li>
+<li>devel/p5-Config-IniFiles
+</li>
+<li>devel/p5-File-MMagic
+</li>
+<li>sysutils/p5-Unix-Syslog
+</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> F-Prot</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+You need to install wget (ftp/wget) and unzip (archivers/unzip) for check-updates.sh.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">cd</span> /usr/local
+tar -zxf /path/to/fp-freebsd-eb-&lt;ver&gt;.tar.gz
+ln -s /usr/local/f-prot/f-protd  /usr/local/sbin/f-protd
+ln -s /usr/local/f-prot/f-prot.sh  /usr/local/bin/f-prot
+ln -s /usr/local/f-prot/man8/f-protd.8 /usr/local/man/man8/
+ln -s /usr/local/f-prot/man8/f-prot.8 /usr/local/man/man8/
+ln -s /usr/local/f-prot/man8/check-updates.sh.8 /usr/local/man/man8/
+chmod +x /usr/local/f-prot/f-prot*
+chmod +x /usr/local/f-prot/check*
+cp /usr/local/f-prot/f-protd.rc /usr/local/etc/rc.d/f-prot.sh
+</pre>
+</div>
+
+<p>
+Instead of the last copy, you can do (at least on my systems):
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">ln -s /usr/local/f-prot/f-protd.sh /usr/local/etc/rc.d/f-prot.sh
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> AMaVis</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+We're going to use amavis-ng because it has built in support for
+courierfilters and f-protd. Unfortunatly, there is no port for it yet.
+</p>
+
+<p>
+<b>Note:</b> Actually, as of this writting (Oct. 28, 2003), f-protd support
+is very poor. One of these days, I may do something about that.
+</p>
+</div>
+
+<div id="outline-container-3-1" class="outline-3">
+<h3 id="sec-3-1"><span class="section-number-3">3.1</span> Download amavis-ng</h3>
+<div class="outline-text-3" id="text-3-1">
+<p>
+amavis-ng is not available in the ports collection, so we'll do it the
+"old fashioned" way. Download amavis-ng from
+<a href="http://www.amavis.org/download.php3#amavis-ng">http://www.amavis.org/download.php3#amavis-ng</a>. (<a href="http://unc.dl.sourceforge.net/sourceforge/amavis/amavis-ng_0.1.6.4.orig.tar.gz">http://unc.dl.sourceforge.net/sourceforge/amavis/amavis-ng_0.1.6.4.orig.tar.gz</a>)
+</p>
+</div>
+</div>
+<div id="outline-container-3-2" class="outline-3">
+<h3 id="sec-3-2"><span class="section-number-3">3.2</span> Extract</h3>
+<div class="outline-text-3" id="text-3-2">
+<p>
+#+BEGIN_SRC sh
+cd /usr/local
+tar -zxf tar -zxf amavis-ng_0.1.6.4.orig.tar.gz
+#+END_SRC sh
+</p>
+</div>
+</div>
+
+<div id="outline-container-3-3" class="outline-3">
+<h3 id="sec-3-3"><span class="section-number-3">3.3</span> Patch</h3>
+<div class="outline-text-3" id="text-3-3">
+<p>
+I wrote a <i>patch</i> to disable the quarantine.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">cd</span> amavis-ng-ver.orig
+patch &lt; AMAVIS.pm.diff
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3-4" class="outline-3">
+<h3 id="sec-3-4"><span class="section-number-3">3.4</span> Build/Install</h3>
+<div class="outline-text-3" id="text-3-4">
+<p>
+Make sure you build amavis-ng with the same version of perl as couirer or you could run into a problems later.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">perl Makefile.PL
+make &amp;&amp; make install
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3-5" class="outline-3">
+<h3 id="sec-3-5"><span class="section-number-3">3.5</span> Fix things</h3>
+<div class="outline-text-3" id="text-3-5">
+<div class="org-src-container">
+
+<pre class="src src-sh">cp -R etc /usr/local/etc/amavis-ng
+ln -s /usr/local/etc/amavis-ng /etc/amavis-ng
+cp magic.mime /usr/local/etc/amavis-ng
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-3-6" class="outline-3">
+<h3 id="sec-3-6"><span class="section-number-3">3.6</span> Configure</h3>
+<div class="outline-text-3" id="text-3-6">
+<pre class="example">
+[general]
+mail-transfer-agent = Courier
+virus-scanner = FPROT
+notifiers = Recipients
+x-header = true
+x-header-tag = X-Scanned-By
+x-header-line = AMaViS-ng
+magic file = /usr/local/etc/amavis-ng/magic.mime
+
+[paths]
+unpackdir = /var/tmp/
+do quarantine = no
+cleanup = yes
+
+[Logging]
+syslog = mail|info
+syslog loglevel = 3
+
+[Notify]
+local domain = .*amigo\.net
+mail from = postmaster@amigo.net
+admin = postmaster@amigo.net
+
+[Courier]
+sendmail = /usr/sbin/courier
+args =
+
+[external]
+bzip2 = /usr/bin/bzip2
+;arj = /usr/bin/arj
+;nomarch = /usr/bin/nomarch
+gzip = /usr/bin/gzip
+;unzoo = /usr/bin/unzoo
+
+;; lha, unrar are non-free.
+; lha = /usr/bin/lha
+; unrar = /usr/bin/unrar
+
+;; For arc zoo, unarj, there are free alternatives whcih are enabled
+;; above.
+arc = /usr/local/bin/arc
+zoo = /usr/local/bin/zoo
+unarj = /usr/local/bin/unarj
+
+[security]
+uid = courier
+gid = courier
+
+[FPROT]
+fprot = /usr/local/bin/f-prot
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Enable in Courier</h2>
+<div class="outline-text-2" id="text-4">
+<div class="org-src-container">
+
+<pre class="src src-sh"><span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"all"</span> &gt; /usr/local/etc/courier/filters/perlfilter-mode
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"30"</span> &gt; /usr/local/etc/courier/filters/perlfilter-numprocs
+<span style="color: #b0c4de;">echo</span> <span style="color: #ffa07a;">"/usr/local/bin/amavis"</span> &gt; /usr/local/etc/courier/filters/perlfilter
+ln -s /usr/local/libexec/filters/perlfilter /usr/local/etc/courier/filters/active/perlfilter
+</pre>
+</div>
+</div>
+
+<div id="outline-container-4-1" class="outline-3">
+<h3 id="sec-4-1"><span class="section-number-3">4.1</span> Starting/Stoping the Filter</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+See courierfilter.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sh">courierfilter stop
+courierfilter start
+courierfilter restart
+</pre>
+</div>
+
+<p>
+If everything is working, you should see a message in your mail log
+that says "Perlfilter starting." If you see messages about not being
+able to find AMAVIS.pm. it means that you used different verions of
+perl to build.
+</p>
+</div>
+</div>
+</div>

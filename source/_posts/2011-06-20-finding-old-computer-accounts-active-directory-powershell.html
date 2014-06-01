@@ -1,0 +1,59 @@
+---
+layout: post
+title: Finding Old Computer Accounts in Active Directory with Powershell
+date: 2011-06-20 13:31
+comments: true
+categories: [active-directory, powershell]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-06-20 Mon 13:31]</span></span></i>
+</p>
+
+<p>
+Following up on a previous post discussing finding old user accounts in Active
+Directory, here's how you find old computer accounts.
+</p>
+
+<p>
+This works on basically the same premise as the user script. In short, we're
+going to check the last time the computer logged into Active Directory. That
+happens on every reboot and from time to time while the machine is up. The
+same warning applies to computers as it does for user accounts. The last logon
+timestamp is only accurate to about a week. Since people are generally
+checking back six months or more, it isn't much of an issue.
+</p>
+
+<p>
+To get the list of stale machines:
+</p>
+
+<pre class="example">
+get-adcomputer -properties lastLogonDate -filter * | where { $_.lastLogonDate
+-lt (get-date).addmonths(-12) } | FT Name,LastLogonDate
+</pre>
+
+<p>
+You can throw a sort in there if you'd like.
+</p>
+
+<pre class="example">
+get-adcomputer -properties lastLogonDate -filter * | where { $_.lastLogonDate
+-lt (get-date).addmonths(-12) } | sort Name | FT Name,LastLogonDate
+</pre>
+
+<p>
+It's just as easy to delete all of those accounts. I've added a <code>-whatif</code> to
+make it harder to do something stupid with cut-and-paste. Take it off to
+actually delete the computer accounts.
+</p>
+
+<pre class="example">
+get-adcomputer -properties lastLogonDate -filter * | where { $_.lastLogonDate
+-lt (get-date).addmonths(-12) } | Remove-ADComputer -whatif
+</pre>
+
+<p>
+<b>Updated 2011-06-20 14:15:</b> Added a missing <code>}</code> to every example. Don't you hate
+it when you have a bug in your code and you copy and paste that same line over
+and over again? Me, too.
+</p>

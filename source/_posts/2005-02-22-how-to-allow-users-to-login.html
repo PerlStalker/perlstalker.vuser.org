@@ -1,0 +1,105 @@
+---
+layout: post
+title: How to Allow Users to Login with user%domain
+date: 2005-02-22 23:15
+comments: true
+categories: [courier, mysql]
+---
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2005-02-22 Tue 23:15]</span></span></i>
+</p>
+
+<p>
+Like many people, I setup courier to use mysql for
+authentication. When I went through the setup, I decided to store
+username as user@domain in the accounts table. Users who are not in
+the default domain, can login as user@domain and they are good to
+go. This works well in most modern email clients, but some older
+clients, notably Netscape 4.5, can't use this syntax and are unable to
+login.
+</p>
+
+<p>
+The standard workaround is to allow users to login with
+''user%domain''.  That's all well and good, but courier, by default,
+doesn't know how to work with the %. There are a couple of ways to fix
+this, both require using <code>MYSQL_SELECT_CLAUSE</code> in <code>authmysqlrc</code>.
+</p>
+
+<p>
+<b>Note:</b> It seems that some time between courier-mta 0.45.x and 0.47, the order
+of things changed. Here's the list from the two versions:
+</p>
+
+<p>
+<b>0.45.x</b>
+</p>
+
+<pre class="example">
+username, cryptpw, uid, gid, clearpw, home, maildir, quota, fullname
+</pre>
+
+<p>
+<b>0.47</b>
+</p>
+
+<pre class="example">
+username, cryptpw, clearpw, uid, gid, home, maildir, quota, fullname, options
+</pre>
+
+<p>
+The selects below have been updated for the 0.47 requirements.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> Option 1: Change Your Schema</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The first option is to change your DB schema so that you split out the
+user name and domain into two fields. This is the easiest solution if
+you have no data already. If you put the user name and domain into
+fields named user and domain, you can use something like the code
+below. <b>Note:</b> This is untested.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sql">MYSQL_SELECT_CLAUSE SELECT concat(user, <span style="color: #ffa07a;">'@'</span>, domain), <span style="color: #ffa07a;">''</span>, clearpw        \
+                         uid, gid, home, <span style="color: #ffa07a;">''</span>, quota, name, options        \
+                         FROM EmailAccounts                              \
+                         WHERE (user = <span style="color: #ffa07a;">'$(local_part)'</span>                   \
+                         and domain = <span style="color: #ffa07a;">'$(domain)'</span>)                       \
+                         OR (username = SUBSTRING_INDEX(<span style="color: #ffa07a;">'$(local_part)'</span>, \
+                         <span style="color: #ffa07a;">'%'</span>, 1)                                         \
+                         AND domain = SUBSTRING_INDEX(<span style="color: #ffa07a;">'$(local_part)'</span>,   \
+                         <span style="color: #ffa07a;">'%'</span>, -1))
+</pre>
+</div>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Option 2: Just Change the Select</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+It's not always possible to change your schema or doing so causes
+other problems. Not a problem. You can use the code below. <b>Note:</b> This
+is what I use on my servers.
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-sql">MYSQL_SELECT_CLAUSE     SELECT username, <span style="color: #ffa07a;">''</span>, clearpw,                        \
+                         uid, gid, home, <span style="color: #ffa07a;">''</span>, quota, name, options            \
+                         FROM EmailAccounts                                  \
+                         WHERE username = <span style="color: #ffa07a;">'$(local_part)@$(domain)'</span>          \
+                         OR username = CONCAT(SUBSTRING_INDEX(<span style="color: #ffa07a;">'$(local_part)'</span>,\
+                            <span style="color: #ffa07a;">'%'</span>, 1),                                         \
+                            <span style="color: #ffa07a;">'@'</span>, SUBSTRING_INDEX(<span style="color: #ffa07a;">'$(local_part)'</span>, <span style="color: #ffa07a;">'%'</span>, -1))
+</pre>
+</div>
+
+<p>
+Option 1 is probably faster, but I haven't benchmarked it personally.
+</p>
+</div>
+</div>

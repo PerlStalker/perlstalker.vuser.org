@@ -1,0 +1,152 @@
+---
+layout: post
+title: Virtualization From the Trenches
+date: 2008-09-07 19:50
+comments: true
+categories: [citrix, hyper-v, kvm, linux, virtualization, xen]
+---
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2008-09-07 Sun 19:50]</span></span></i>
+</p>
+
+<p>
+We're in the process of trying to virtualize our data center at work. I was
+given the task of testing and evaluating the various VM technologies. I have
+to say that I am not impressed.
+</p>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> VMWare ESX</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Let's start with the big player in the VM world, VMWare ESX. The Banner team
+uses ESX for a few of their servers. ESX stood head and shoulders over
+everything else that I looked at. VMWare has done a good job of building a
+system that is easy to work with and can run almost any system thrown at it.
+</p>
+
+<p>
+What kills me with ESX is the price. For five VM servers, we're looking at
+about $12,000 per year, making it the most expensive product out there. We
+also need to deploy a SQL Server to run the backend for the management console
+(which is needed if you plan on running more that five hosts).
+</p>
+</div>
+</div>
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Citrix XenServer</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+Citrix's entry in the VM space has some interesting things going for it.
+First, XenServer is a paravirtualized solution which means that you'll get
+closer to bare metal speeds than you would with a fully virtualized system
+like ESX or kvm. Second, they're working with Microsoft so keep the
+paravirtualized layer compatable between XenServer and Microsoft's Hyper-V.
+This is a big win if you are running (or plan on running) Windows Server 2008
+VMs.
+</p>
+
+<p>
+My first test with Citrix was to install Windows Server 2008. It just worked.
+So, I was a happy camper &#x2026; until I tried to install Linux off an ISO image.
+Both Ubuntu Hardy and Fedora failed. The CD wouldn't even boot. (It hung when
+it tried to start isolinux.) Apparently, if you want to install Linux, you
+have to use one of their prebuilt templates. (RedHat, CentOS, Suse and Debian
+only.) But I don't use any of those.
+</p>
+
+<p>
+I talked to one of their support guys who claims that, if you use a Windows
+install template to install Linux, it would work. Once you're installed, then
+you can switch back to a paravirtual kernel and be all set. I didn't bother.
+It was just more hassle than it should have been.
+</p>
+
+<p>
+Citrix doesn't use a single management console like VMWare ESX. Instead, you
+use a little desktop client to connect to one server in your cluster and you
+can manage the entire cluster. That's nice but the client only runs in
+Windows. Since three of our four admins use Linux on their desktops, that's
+really annoying.
+</p>
+</div>
+</div>
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Open Source Xen</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+The Open Source version of Xen has all of the features of Citrix XenServer but
+without the console. You have to use the command line tools to manage the
+system. Not a problem, given our admins. Unfortunately, I never could get Xen
+to function properly and doing simple things, such as changing a guest's CD,
+was extremely hard. There is a tool that RedHat sponsers called libvirt that
+it supposed to abstract that all out and make things easy but it's broken too.
+More on that later.
+</p>
+</div>
+</div>
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> KVM</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+KVM is extremely simple to setup and use and is included in many distributions
+already, including Ubuntu and RedHat. It's based on qemu but relies on
+hardware to give you the performance you need.
+</p>
+
+<p>
+I ran into problems with kvm-69 (the prepackaged version with Ubuntu Hardy).
+It seems live migration was broken in that release. Migration in kvm-70 works
+just great though I ran into issues with mouse pointer tracking with Windows
+guests after a migration. I have seen some problems with usb (I started
+getting constant usb errors going to my Linux console) in kvm-70 but, acording
+to the ChangeLog, those where fixed in more recent versions.
+</p>
+
+<p>
+KVM's biggest drawback is the UI. The command line to start a VM is about 100
+characters long, if you do more that the basics. You will definitely want to
+wrap your startup commands in a script. Also, the actual console interface
+could use a little polish. The main interaction with KVM is via the qemu
+console. It's not hard to use but will require a bit of training for less savy
+users.
+</p>
+</div>
+</div>
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> libvirt</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+Libvirt is a bit of glue designed to abstract away the differences in managing
+VM using different products. It has support for Xen, KVM/QEMU and OpenVZ. This
+is the basis for a lot of the Open Source VM management tools such as RedHat's
+virt-manager and oVirt products.
+</p>
+
+<p>
+Unfortunately, libvirt lies. It claims to support live migration for KVM but,
+having looked through the code troubleshooting another problem, my colleague
+and I discovered that it doesn't actually support live migration. There's only
+one place in the code (as of this writing) that uses the qemu migrate command
+and that's to save the state to a file when suspending a VM. Also, thanks to
+advances in qemu, libvirt cannot change a CD for a VM. This isn't a huge
+problem for Linux guests but is essential for my Windows systems. (Ubuntu has
+released a patch for libvirt that lets you change CDs for the primary CD
+drive.)
+</p>
+</div>
+</div>
+<div id="outline-container-6" class="outline-2">
+<h2 id="sec-6"><span class="section-number-2">6</span> Conclusion</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+Eventually, we settled on KVM. It's simplicity to setup and use was a win and
+the fact that it ran everything I threw at it was a big win. It also lets us
+leverage our existing knowledge without having to learn an entirely new
+system. I'm looking forward to what happens with KVM in the future. It looks
+like it will be a serious rival to VMWare and Microsoft Hyper-V in the next
+year or so.
+</p>
+</div>
+</div>

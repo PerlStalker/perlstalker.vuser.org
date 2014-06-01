@@ -1,0 +1,44 @@
+---
+layout: post
+title: Fixing DPMRA Start Failures After Installing AD DS on Windows Server 2008
+date: 2011-01-06 11:56
+comments: true
+categories: [active-directory, data-protection-manager, windows-server-2008]
+---
+
+<p>
+<i>Originally posted at <span class="timestamp-wrapper"><span class="timestamp">[2011-01-06 Thu 11:56]</span></span></i>
+</p>
+
+<p>
+I'm getting ready to deploy a pair of Server 2008 Active Directory servers to
+replace a couple of old 2003 boxes. In preparing those servers, I installed
+the remote agent for Microsoft Data Protection Manager before I installed the
+ADDS role and promoting the new AD servers. That turned out to be a mistake.
+</p>
+
+<p>
+After promoting the AD servers, the DPM agent service (DPMRA) stopped running
+and would not start again. Instead it would kick back the "service-specific
+error code 1332" or 1168. Neither was especially helpful. So, I tried Windows
+Troubleshooting Step #1: Reboot. No dice. A quick trip to Google and I found a
+few suggestions to run setdpmserver again. Unfortunately that kicked back this
+error.
+</p>
+
+<blockquote>
+<p>
+SetDpmServer failed with errorcode =0x80070534, error says: No
+mapping between account names and security IDs was done. To
+further troubleshoot failures with SetDpmServer, go to
+<a href="http://go.microsoft.com/fwlink/?LinkId=169142"><a href="http://go.microsoft.com/fwlink/?LinkId=169142">http://go.microsoft.com/fwlink/?LinkId=169142</a></a>.
+</p>
+</blockquote>
+
+<p>
+Turns out, that link doesn't help at all. Fortunately, searching on that error
+brought me to <a href="http://technet.microsoft.com/en-us/library/ff399208.aspx">the troubleshooting page in the DPM docs</a>. Therein is suggested
+Windows Troubleshooting Step #2: Reinstall. I uninstalled the agent, rebooted,
+installed the agent manually, reran setdpmserver, rebooted again, and DPMRA
+finally started.
+</p>
