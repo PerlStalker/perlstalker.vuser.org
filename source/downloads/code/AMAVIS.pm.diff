@@ -1,0 +1,27 @@
+--- AMAVIS.pm-orig	Tue Jun  3 16:19:16 2003
++++ AMAVIS.pm	Tue Jun  3 16:22:30 2003
+@@ -88,6 +88,7 @@
+ 	    $cfg_chroot
+ 
+ 	    $cfg_unpack_dir
++	    $cfg_do_quarantine
+ 	    $cfg_quarantine_dir
+ 	    $cfg_problem_dir
+ 
+@@ -174,6 +175,7 @@
+ 	     ': no unpack dir specified, using /tmp');
+   }
+   # Quarantine path for rejected messages
++  $cfg_do_quarantine = (lc($cfg->val('paths', 'do quarantine')) || 'yes');
+   $cfg_quarantine_dir = ($cfg->val('paths', 'quarantine') ||
+ 			 $cfg->val('paths', 'quarantine dir') || 
+ 			 '/var/spool/amavis-ng/quarantine');
+@@ -502,7 +504,7 @@
+     $mta->drop_message($args);
+ 
+     # Quarantine message
+-    if (defined $cfg_quarantine_dir) {
++    if ($cfg_do_quarantine eq 'yes' && defined $cfg_quarantine_dir) {
+       $self->quarantine_message($args, $cfg_quarantine_dir) or do {
+         writelog($args,LOG_CRIT, __PACKAGE__.
+   	       ": Error while quarantining message");
