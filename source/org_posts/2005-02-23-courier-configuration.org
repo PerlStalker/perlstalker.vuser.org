@@ -1,0 +1,320 @@
+#+TITLE: Courier Configuration
+#+AUTHOR: PerlStalker
+#+DATE: [2005-02-23 Wed 15:43]
+#+begin_html
+---
+layout: post
+title: Courier Configuration
+date: 2005-02-23 15:43
+comments: true
+categories: [courier, mysql]
+---
+#+end_html
+/Originally posted at [2005-02-23 Wed 15:43]/
+
+I use MySQL to store user data in courier. Here's how to set it up.
+
+* Configure Courier
+
+Before you begin, find your courier installation's configuration
+directory. It is usually =/usr/local/etc/courier=, =/etc/courier= or
+=/usr/local/courier/etc=.  Unless otherwise noted, the files mentioned
+here will be in this directory.
+
+** smtpaccess/
+
+You need to edit the files in this directory to allow relaying by IP address.
+To allow an IP to relay, add a line like this to any file in this directory.
+(aaa.bbb.ccc.ddd is the IP to allow, [tab] is a literal tab character.
+
+#+BEGIN_EXAMPLE
+aaa.bbb.ccc.ddd[tab]allow,RELAYCLIENT
+#+END_EXAMPLE
+
+I like to delete the default file, but you can edit that file if you like.
+
+#+BEGIN_SRC sh
+rm default
+#+END_SRC
+
+** smtpaccess/localhost
+
+You need to add 127.0.0.1 to allow localhost to use SMTP.
+
+#+BEGIN_EXAMPLE
+127.0.0.1[tab]allow,RELAYCLIENT
+#+END_EXAMPLE
+
+** smtpaccess/amigo
+
+This is where I (at [[http://www.amigo.net/][Amigo.Net]]) allow our CIDR to relay. I call this
+file =amigo= because it's our company name. You can call it whatever
+you want.
+
+Unfortunately, you can only wild card full octets. For eample, 192.168.1 will
+allow all addresses from 192.168.1.0-192.168.1.255 and 192.168 will allow
+192.168.0.0-192.168.255.255.
+
+#+BEGIN_EXAMPLE
+209.94.64[tab]allow,RELAYCLIENT
+209.94.65[tab]allow,RELAYCLIENT
+209.94.66[tab]allow,RELAYCLIENT
+...
+209.94.95[tab]allow,RELAYCLIENT
+#+END_EXAMPLE
+
+The easy way to create this is with a little shell script.
+
+#+BEGIN_SRC sh
+for i in `jot 32 64 95`; do
+      echo -e "209.94.$i\tallow,RELAYCLIENT"
+done > smtpaccess/amigo
+#+END_SRC
+
+Run =makesmtpaccess= when you are done.
+
+*Note:* I find it necessary to restart courier after changing this.
+
+** emtpd
+
+#+BEGIN_EXAMPLE
+TCPDOPTS="-stderrlogger=/usr/local/sbin/courierlogger -noidentlookup
+-nodnslookup"
+AUTHMODULES="authdaemon"
+ESMTPAUTH="LOGIN CRAM-MD5 PLAIN"
+ESMTPAUTH_TLS="LOGIN CRAM-MD5 PLAIN"
+ESMTPDSTART=YES
+#+END_EXAMPLE
+
+** pop3d
+
+#+BEGIN_EXAMPLE
+POP3AUTH="LOGIN CRAM-MD5 CRAM-SHA1"
+POP3AUTH_TLS="LOGIN PLAIN"
+POP3DSTART=YES
+#+END_EXAMPLE
+
+** imapd
+
+#+BEGIN_EXAMPLE
+IMAP_OBSOLETE_CLIENT=1
+IMAPDSTART=YES
+#+END_EXAMPLE
+
+** hosteddomains
+
+Add virtual domains to this file.
+
+#+BEGIN_EXAMPLE
+amigo.net
+my.amigo.net
+#+END_EXAMPLE
+
+You may want to alias one domain to another. For example you may want 
+=mail.example.com= to be the same as =example.com=. You do that like this:
+
+#+BEGIN_EXAMPLE
+example.com
+mail.example.com[tab]example.com
+#+END_EXAMPLE
+
+Run =makehosteddomains= when you're done.
+
+*Note:* I restart courier after changing this as well.
+
+** logindomainlist
+
+This provides a drop down list of domains for sqwebmail. Domains are listed
+one per line.
+
+** usexsender
+
+This file just needs to exist.
+
+#+BEGIN_SRC sh
+touch usexsender
+#+END_SRC
+
+** authdaemonrc
+
+We should disable authmodules that are not being used.
+
+#+BEGIN_EXAMPLE
+authmodulelist="authmysql"
+#+END_EXAMPLE
+
+Make sure courier uses the MySQL backend.
+
+#+BEGIN_EXAMPLE
+version="authdaemond.mysql"
+#+END_EXAMPLE
+
+** defaultdomain
+
+This will be appended to addresses that don't have a domain specified. You
+will, of course, use your domain here. *Note:* This file does not exist by
+default.
+
+#+BEGIN_EXAMPLE
+amigo.net
+#+END_EXAMPLE
+
+** enablefiltering
+
+This is a list of services that will be filtered with courierfilters.
+
+#+BEGIN_EXAMPLE
+esmtp local
+#+END_EXAMPLE
+
+** esmtpaccecptmailfor and esmtpacceptmailfor.dir/
+
+=esmtpacceptmailfor= and files in =esmtpacceptmailfor.dir/= contain lists of
+domains that this server will accept mail for. Domains are listed one per
+line.
+
+** bofh
+
+Set BOFHBADMIME to accept mail with bad chars in the header. There are places
+like Yahoo! and HotMail that send mail with screwed up headers. *Note:* This
+file does not exist by default.
+
+#+BEGIN_EXAMPLE
+opt BOFHBADMIME=accept
+#+END_EXAMPLE
+
+You can enable SPF checks in this file too. See [[http://perlstalker.vuser.org/blog/2005/02/23/courier-and-spf/][Courier and SPF]] for more
+details.
+
+** /usr/local/etc/maildroprc
+
+This is the global config file for maildrop. It doesn't actually do anything
+at this point but is the basis for other changes for things like
+[[http://perlstalker.vuser.org/blog/2005/01/22/Courier-SpamAssassin/][global spam filtering]] with [[http://www.spamassassin.org/][SpamAssassin]].
+
+*Note:* I like to put this in =/usr/local/etc/courier= and symlink to
+=/usr/local/etc/maildroprc=. This is not at all required.
+
+#+BEGIN_SRC sh
+ln -s /usr/local/etc/courier/maildroprc /usr/local/etc/maildroprc
+#+END_SRC
+
+** calendarmode
+
+This is only needed if you want to have a calendar in sqwebmail.
+
+Set to local for account level calendars and net for a groupware calendar. (We
+use local for our customers.)
+
+#+BEGIN_SRC sh
+echo "local" >calendarmode
+#+END_SRC
+
+Or
+
+#+BEGIN_SRC sh
+echo "net" >calendarmode
+#+END_SRC
+
+** skel
+
+I setup a skeleton directory for virtual users named =skel=. This is used when
+new accounts are created to set everything up.
+
+#+BEGIN_SRC sh
+mkdir skel
+cd skel
+maildirmake Maildir
+maildirmake -q 20000000S Maildir
+maildirmake -f Spam Maildir
+echo "MAILDIRFILTER=../.mailfilter" > Maildir/maildirfilterconfig
+echo "MAILDIR=./Maildir" >> Maildir/maildirfilterconfig
+/usr/local/share/courier/sqwebmail/webgpg Maildir
+chown -R courier ../skel
+chmod 600 ../skel/Maildir/maildirfilterconfig
+#+END_SRC
+
+* Setup sqwebmail
+
+Set up the webmail CGI. This is purely optional.
+
+#+BEGIN_SRC sh
+cp /usr/local/libexec/courier/webmail /usr/local/www/cgi-bin/webmail
+mkdir /usr/local/www/data/webmail
+cp -R /usr/local/share/courier/sqwebmail/images/ /usr/local/www/data/webmail/
+#+END_SRC
+
+*Note:* By default, webmail times out sessions in 20 minutes. This seems a bit
+short to me. To increase it to an hour, add
+
+#+BEGIN_EXAMPLE
+SetEnv SQWEBMAIL_TIMEOUTSOFT 3600
+#+END_EXAMPLE
+
+to =/usr/local/etc/apache/httpd.conf=. If you set it higher than 7200, you need
+to adjust =$timeout= in =/usr/local/share/courier/sqwebmail/cleancache.pl=.
+
+** Add cleancache.pl to crontab.
+
+#+BEGIN_EXAMPLE
+25 * * * * root /usr/local/share/courier/sqwebmail/cleancache.pl
+#+END_EXAMPLE
+
+* Configure Courier to Use MySQL
+
+** Create the Database
+
+#+BEGIN_SRC sql
+create database Accounts;
+
+use Accounts;
+
+CREATE TABLE EmailAccounts (
+         username        varchar(128)    default ''      NOT NULL,
+         name            varchar(128)    default ''      NULL,
+         clearpw         varchar(128)    default ''      NOT NULL,
+         uid             int(10)         default 62      NOT NULL,
+         gid             int(10)         default 62      NOT NULL,
+         home            varchar(255)                    NOT NULL,
+         quota           varchar(255)    default '20000000S'     NOT NULL,
+         alias_for       varchar(128)                    NULL,
+         PRIMARY KEY(username)
+) COMMENT = "Email account Account settings.";
+
+GRANT ALL on Accounts.* to postmaster IDENTIFIED by '<passwd>';
+GRANT SELECT,DELETE,INSERT,UPDATE on Accounts.* to
+         courier IDENTIFIED by '<passwd>';
+#+END_SRC sql
+
+The user courier really only needs SELECT permissions. Feel from to change the
+grant line if that works better for you. If you change it, you will need to
+use postmaster to modify the table.
+
+** Change authmysqlrc
+
+=authmysqlrc= is in =/usr/local/etc/courier/authmysqlrc= on FreeBSD.
+
+#+BEGIN_EXAMPLE
+MYSQL_SERVER           localhost
+MYSQL_USERNAME         courier
+MYSQL_PASSWORD         <password>
+MYSQL_SOCKET           /tmp/mysql.sock
+MYSQL_DATABASE         Accounts
+MYSQL_USER_TABLE       EmailAccounts
+#MYSQL_CRYPT_PWFIELD   cryptpw
+MYSQL_CLEAR_PWFIELD    clearpw
+DEFAULT_DOMAIN         amigo.net
+MYSQL_UID_FIELD        uid
+MYSQL_GID_FIELD        gid
+MYSQL_LOGIN_FIELD      username
+MYSQL_HOME_FIELD       home
+MYSQL_NAME_FIELD       name
+#MYSQL_MAILDIR_FIELD   maildir
+MySQL_QUOTA_FIELD      quota
+#+END_EXAMPLE
+
+* Adding/Deleting/Modifying a Virtual User
+
+Users can be added to the database using whatever tool you like. I use a perl
+script called [[http://www.vuser.org/][vuser]].
+

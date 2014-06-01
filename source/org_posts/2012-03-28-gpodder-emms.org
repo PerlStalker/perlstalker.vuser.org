@@ -1,0 +1,68 @@
+#+TITLE: gPodder and EMMS
+#+AUTHOR: PerlStalker
+#+DATE: [2012-03-28 Wed 13:58]
+#+begin_html
+---
+layout: post
+title: gPodder and EMMS
+date: 2012-03-28 13:58
+comments: true
+categories: [emacs, gpodder, emms]
+---
+#+end_html
+I use [[http://gpodder.org/][gPodder]] to pull podcasts for all my listening pleasure at
+work. I had been using gnome-mplayer to listen to them but after a
+recent re-install, gnome-mplayer started to hanging every when I pause
+the playback. Gmplayer works fine so I know that mplayer, by itself,
+is not the problem but that doesn't have a systray icon to make it easy
+to click and pause playback.
+
+Since I'm so frequently using emacs, I thought to myself "I wonder if
+I can do this in emacs?" Of course, I can. Enter [[http://www.gnu.org/software/emms/][emms]].
+
+* emms Configuration
+
+Based on a little bit of research, I decided to use mplayer as the
+backend. The setup is pretty easy. This is what I'm using based on
+[[http://dryice.name/blog/emacs/emms-using-mplayer/][this blog post]].
+
+#+BEGIN_SRC emacs-lisp
+;; emms
+
+(require 'emms-player-mplayer)
+(require 'emms-source-file)
+(require 'emms-source-playlist)
+
+(setq emms-player-mplayer-command-name "mplayer"
+      emms-player-mplayer-parameters '("-slave")
+      emms-player-mpg321-command-name "mpg123"
+      emms-player-list
+      '(emms-player-mplayer
+	emms-player-mplayer-playlist
+	emms-player-mpg321
+	emms-player-ogg123))
+#+END_SRC
+
+* gPodder Configuration
+
+Now that I can listen to the music via emacs, I need to tell gPodder
+how to feed the podcasts into emms. It's simple to add them to
+playlist from outside of emacs with this:
+
+#+BEGIN_SRC sh
+emacsclient --server-file=work --eval '(emms-add-file "TD140.mp3")'
+#+END_SRC
+
+In =$HOME/.config/gpodder/gpodder.conf=, you can set the =player=
+setting. gPodder replaces the =%U= with the file name. ... In
+theory. In practice, gPodder only replaces =%U= if it's at the end of
+the line. That means I needed to write a quick wrapper.
+
+{% include_code lang:perl add2emms.pl %}
+
+I run emacs in daemon mode (with TCP). If you don't, you'll want to
+change the =$emacs= variable.
+
+And you're done. Happy listening.
+
+

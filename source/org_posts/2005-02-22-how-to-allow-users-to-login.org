@@ -1,0 +1,82 @@
+#+TITLE: How to Allow Users to Login with user%domain
+#+AUTHOR: PerlStalker
+#+DATE: [2005-02-22 Tue 23:15]
+#+begin_html
+---
+layout: post
+title: How to Allow Users to Login with user%domain
+date: 2005-02-22 23:15
+comments: true
+categories: [courier, mysql]
+---
+#+end_html
+/Originally posted at [2005-02-22 Tue 23:15]/
+
+Like many people, I setup courier to use mysql for
+authentication. When I went through the setup, I decided to store
+username as user@domain in the accounts table. Users who are not in
+the default domain, can login as user@domain and they are good to
+go. This works well in most modern email clients, but some older
+clients, notably Netscape 4.5, can't use this syntax and are unable to
+login.
+
+The standard workaround is to allow users to login with
+''user%domain''.  That's all well and good, but courier, by default,
+doesn't know how to work with the %. There are a couple of ways to fix
+this, both require using =MYSQL_SELECT_CLAUSE= in =authmysqlrc=.
+
+*Note:* It seems that some time between courier-mta 0.45.x and 0.47, the order
+of things changed. Here's the list from the two versions:
+
+*0.45.x*
+
+#+begin_example
+username, cryptpw, uid, gid, clearpw, home, maildir, quota, fullname
+#+end_example
+
+*0.47*
+
+#+begin_example
+username, cryptpw, clearpw, uid, gid, home, maildir, quota, fullname, options
+#+end_example
+
+The selects below have been updated for the 0.47 requirements.
+
+* Option 1: Change Your Schema
+
+The first option is to change your DB schema so that you split out the
+user name and domain into two fields. This is the easiest solution if
+you have no data already. If you put the user name and domain into
+fields named user and domain, you can use something like the code
+below. *Note:* This is untested.
+
+#+begin_src sql
+MYSQL_SELECT_CLAUSE SELECT concat(user, '@', domain), '', clearpw        \
+                         uid, gid, home, '', quota, name, options        \
+                         FROM EmailAccounts                              \
+                         WHERE (user = '$(local_part)'                   \
+                         and domain = '$(domain)')                       \
+                         OR (username = SUBSTRING_INDEX('$(local_part)', \
+                         '%', 1)                                         \
+                         AND domain = SUBSTRING_INDEX('$(local_part)',   \
+                         '%', -1))
+#+end_src
+
+* Option 2: Just Change the Select
+
+It's not always possible to change your schema or doing so causes
+other problems. Not a problem. You can use the code below. *Note:* This
+is what I use on my servers.
+
+#+begin_src sql
+MYSQL_SELECT_CLAUSE     SELECT username, '', clearpw,                        \
+                         uid, gid, home, '', quota, name, options            \
+                         FROM EmailAccounts                                  \
+                         WHERE username = '$(local_part)@$(domain)'          \
+                         OR username = CONCAT(SUBSTRING_INDEX('$(local_part)',\
+                            '%', 1),                                         \
+                            '@', SUBSTRING_INDEX('$(local_part)', '%', -1))
+#+end_src
+
+Option 1 is probably faster, but I haven't benchmarked it personally.
+

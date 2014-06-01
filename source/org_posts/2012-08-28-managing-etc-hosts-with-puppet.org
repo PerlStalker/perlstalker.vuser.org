@@ -1,0 +1,113 @@
+#+TITLE: Managing /etc/hosts With Puppet
+#+AUTHOR: PerlStalker
+#+DATE: [2012-08-28 Tue 16:38]
+#+begin_html
+---
+layout: post
+title: Managing /etc/hosts With Puppet
+date: 2012-08-28 16:38
+comments: true
+categories: [puppet, augeas]
+---
+#+end_html
+So, here's the situation. I have a stack of VM servers running KVM and
+libvirt. The hosts need to connect to a SAN for ISO storage and,
+potentially, VM disks. The problem is that the VM running DNS may not
+be up yet when the host starts. That's a problem since I'm referencing
+the san by it's host name rather than the IP address. Yes, I could
+change all of my configs to use the IP instead but host names are a
+lot easier to deal with, most of the time.
+
+Well, I could work around the lack of DNS by putting an entry for the
+server in =/etc/hosts= but then I'd have to update it on every server
+if I ever change the IP address. Fortunately, puppet makes it
+easy. Sort of.
+
+Puppet is a wonderful tool for managing Linux (and other *nix)
+servers. It's a little weak, though, when all you want to do is add a
+line to file. That's exactly what I wanted to do with =/etc/hosts=.
+
+The good news is that puppet has a hook into the tool [[http://www.augeas.net/][augeus]]. That
+makes editing the config relatively easy but plugging that into puppet
+is still a little messy. To make it easier, I created a class and
+define to tidy that up a bit.
+
+*Update [2012-09-03 Mon 07:15]:* Puppet actually makes this easier
+ than I thought. There already exists a [[http://docs.puppetlabs.com/references/latest/type.html#host][host data type]] that I totally
+ missed before. Dominic Cleal also [[https://twitter.com/domcleal/status/242533984200978432][pointed me to]] a module that he
+ wrote that adds [[http://forge.puppetlabs.com/domcleal/augeasproviders][augeus providers]] to some of the default data types,
+ including host.
+
+
+#+begin_example
+class hosts {
+  define entry(
+    $ipaddr,
+    $canonical,
+    $aliases = 'UNSET' # I want to make this an array
+    )
+    {
+      augeas { "create_$title":
+        context => '/files/etc/hosts',
+        changes => [
+                    "ins 01 after 1",
+                    "set 01/ipaddr $ipaddr",
+                    "set 01/canonical $canonical"
+                    ],
+        onlyif  => "match *[ipaddr = '$ipaddr'] size == 0"
+      }
+
+      augeas { "update_$title":
+        context => '/files/etc/hosts',
+        changes => [
+                    "set *[ipaddr = '$ipaddr']/canonical $canonical"
+                    ],
+      }
+
+      Augeas["create_$title"] -> Augeas["update_$title"]
+
+      # It would be great if I could loop this
+      if ($aliases == 'UNSET') {
+        augeas { "alias_$title":
+          context => '/files/etc/hosts',
+          changes => [
+                      "rm *[ipaddr = '$ipaddr']/alias[1]"
+                      ],
+        }
+      }
+      else {
+        augeas { "alias_$title":
+          context => '/files/etc/hosts',
+          changes => [
+                      "set *[ipaddr = '$ipaddr']/alias[1] '$alias'"
+                      ],
+        }
+      }
+      Augeas["update_$title"] -> Augeas["alias_$title"]
+    }
+}
+#+end_example
+
+There are a couple of known issues. First, you can't unset an
+entry. If you add a host with this and then decide that you no longer
+want it there, you can't take it out. I don't think it would hard to
+add that feature but I haven't.
+
+Second, the define only lets you set the first alias. Augeas allows
+for multiple aliases and I could pass an array to the define but I
+don't know how to loop through that list.
+
+Anyway, here's how you use the define within a node or class
+definition.
+
+#+begin_example
+  include hosts
+  hosts::entry { 'san':
+    ipaddr    => '192.168.1.5',
+    canonical => 'san.example',
+    aliases   => 'san'
+  }
+#+end_example
+
+You can use as many =hosts::entry= blocks as you want.
+

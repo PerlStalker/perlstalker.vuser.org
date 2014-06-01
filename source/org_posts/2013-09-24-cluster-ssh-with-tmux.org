@@ -1,0 +1,82 @@
+#+begin_html
+---
+layout: post
+title: "Cluster SSH with tmux"
+date: 2013-09-24 17:00
+comments: true
+categories: "tmux"
+---
+#+end_html
+
+I was working today and, as I glanced at #lopsa, I saw this little
+gem.
+
+#+begin_quote
+13:50 <geekosaur> tmux has a broadcast-to-all-terminals thing
+#+end_quote
+
+Wait, what?! I had to check it out. It turns out that tmux has a
+window option called =synchronize-panes= which lets you "Duplicate
+input to any pane to all other panes in the same window."
+
+I've been using [[http://sourceforge.net/projects/clusterssh/][cluster ssh]] to occasionally log into a bunch of my
+boxes at once and run the same command on all of them at the same
+time. It's really nice for troubleshooting checking on the same thing
+on a bunch of servers all at once. It works pretty well but has the
+drawback that it depends on having X available. That's a concern if I
+have to bridge through my machine and work and want to talk to a cluster.
+
+I played around a bit and came up with a way for me to replicate when
+I was doing with cssh. The first bit is the following script which is
+based on [[http://www.christoph-egger.org/weblog/entry/33][this example]].
+
+#+begin_src sh
+#!/bin/bash
+HOSTS=
+
+if [ $1 = 'cluster1' ]; then
+    HOSTS="host1 host2 host3"
+elif [ $1 = 'cluster2' ]; then
+    HOSTS="hostA hostB hostC hostD hostE hostF"
+else
+    exit
+fi
+
+for host in $HOSTS
+do
+    tmux splitw "ssh $host"
+    tmux select-layout tiled
+done
+tmux set-window-option synchronize-panes on
+#+end_src
+
+Tmux can be controlled completely from the command line or from a
+script. This script takes a cluster name on the command line and opens
+a ssh session to each host in the list in a new pane. The last line is
+the magic. It turns on the synchronization so what gets typed in one
+pane is echoed to the others as well.
+
+Now, this isn't perfect. Unfortunately, the tiling doesn't end up
+right when I use more than three or four servers. A quick =C-z M-5=
+takes care of it but it's annoying. (Note: I changed =send-prefix=
+from the default of =C-b= to =C-z=. Adjust your thinking accordingly.)
+
+I've made the following changes to =~/.tmux.conf= to make this easier
+to use.
+
+#+begin_example
+bind-key M-s command-prompt -p "cluster" "new-window -n %1 'tssh %1'"
+bind-key M-a set-window-option synchronize-panes
+#+end_example
+
+The first line maps =C-z M-s= so that it prompts me for a cluster name
+then opens a new window with all of the connections.
+
+The second line provides an easy way to toggle the synchronization on
+and off. That makes it nice for ad hoc cluster views. Sometimes, I'm
+looking at a couple of servers and I want to perform a few commands on
+them both to check things. A quick =C-z M-a= and I can issue the
+commands to both servers. Hitting =C-z M-a= turns it off again.
+
+There you go. A quick and easy way to get work on many servers all at
+once without the need for X.

@@ -1,0 +1,96 @@
+#+TITLE: IkiWiki and Org-mode
+#+AUTHOR: PerlStalker
+#+DATE: [2012-03-25 Sun 22:02]
+#+begin_html
+---
+layout: post
+title: IkiWiki and Org-mode
+date: 2012-03-25 22:02
+comments: true
+categories: [ikiwiki, emacs, org-mode]
+---
+#+end_html
+I love emacs. I practically live in emacs at work. One of my favorite
+features is [[http://orgmode.org/][org-mode]]. At its simplest, org-mode is simply a markup
+language similar to wiki-text or markdown. When you get into it more,
+the real power of scheduling and task management comes out. In my
+case, it's the only system that's I've been able to use to stay
+organized. I've been so happy with org-mode that I start to looking
+into using for this blog.
+
+I looked at several options from using org-mode's publish feature to
+publish HTML that I could paste into Drupal or using the native
+publish feature on its own. In the end [[http://ikiwiki.info/][IkiWiki]] won out.
+
+IkiWiki has several useful features for me; mainly, the RSS/Atom feeds
+and a tag cloud. Most important, the formatting language is pluggable
+and there's a plugin to use org-mode instead of the native
+markdown. Getting it setup was pretty straight forward but had a
+couple of hang-ups because of my personal setup and there are a couple
+of things to look out for when actually using it.
+
+* Installing
+
+The first step (after installing IkiWiki) was to get Chris Gray's
+excellent [[https://github.com/chrismgray/ikiwiki-org-plugin][new_org]] plugin. This is what does the translation of the org
+files to HTML. Actually, it doesn't do the translation. Instead if
+feeds the file to emacs to spit out the HTML. That's were my first
+problem hit.
+
+As I said, I already use emacs and one of the things I did on my
+server was start emacs in server mode. Once in server mode, I use
+emacsclient as my editor which really fast. The problem is that
+new_org also uses emacs server to keep from starting emacs for every
+change which speed up the translations. Unfortunately, the two servers
+conflicted. I think there was an issue with the two trying to use the
+same unix socket or something. I eventually switched emacs to use tcp
+sockets by putting =(setq server-use-tcp t)= in =$HOME/.emacs=.
+
+There are also a few changes in =new_org.pm= needed to support tcp
+sockets. First =emacsclient -s org-ikiwiki-compiler= needs to be changed to
+=emacsclient --server-file=org-ikiwiki-compiler=. Second =emacs --daemon= needs to be
+changed to =emacs --daemon=org-ikiwiki-compiler=. There are a couple
+of places where those changes needed to be made. Once those were in
+place, I was /almost/ able to publish files.
+
+I ran into a problem with emacs hanging when I tried to publish with
+=ikiwiki --refresh=. It turns out that I was still using the ancient
+version of org-mode that came with emacs on Ubuntu Lucid. My problems
+went away after upgrading org-mode to the latest version.
+
+Those items done, I was able to publish new posts all day long.
+
+* Publishing
+
+** Blog System Files
+
+The first thing to keep in mind is that the index, sidebar and tag
+files all need to remain in markdown with =.mdwn= extensions. When I
+tried to change them to org-mode, IkiWiki would not process them
+correctly. That's a little annoying but no big deal, really, since I
+hardly ever need to touch them. I mostly org-mode for the blog posts.
+
+** IkiWiki Directives
+
+This is where things got a little weird. IkiWiki directives use the
+same syntax as org-mode does for links. For the most part, the two
+play well together. For example, the =tag= directive does, in fact, add
+tags to the post. I did run into an issue with images, however. It's
+possible to use the basic org-mode link syntax to add an image but it
+doesn't properly deal with paths. IkiWiki's =img= directive takes care
+of that but emacs would see the HTML that the directive wrote and
+happily escape the HTML.
+
+The solution is to wrap the =img= directive in =#+BEGIN_HTML= and
+=#+END_HTML= blocks and everything is happy.
+
+I haven't used any of the other directives yet so I can't tell you
+how well they work. Though that may be why the index and tag pages
+where giving me grief.
+
+* Conclusion
+
+With those little snags out of the way, everything is full steam
+ahead. I'll keep y'all informed of anything else I run into but it's
+been smooth sailing so far.
+

@@ -1,0 +1,76 @@
+#+TITLE: Installing Courier
+#+AUTHOR: PerlStalker
+#+DATE: [2006-02-23 Thu 08:51]
+#+begin_html
+---
+layout: post
+title: Installing Courier
+date: 2006-02-23 08:51
+comments: true
+categories: [courier, freebsd, gentoo]
+---
+#+end_html
+/Originally posted at [2006-02-23 Thu 08:51]/
+
+* FreeBSD
+
+Install the following from ports:
+
+** mail/courier
+
+*Note:* Make sure you upgrade Perl before you build courier. This is so that 
+perlfilter can find perl modules installed later, e.g. =Courier::Filter=.
+
+Add to =/etc/make.conf=
+
+#+BEGIN_EXAMPLE
+# For Courier
+WITH_GNUPG=yes
+WITH_ISPELL=yes
+WITH_LDAP2=no
+WITH_MYSQL=yes
+#+END_EXAMPLE
+
+Also, you need to make sure that courier is using Perl > 5.6 and not the
+system perl. During the build, courier uses =/usr/bin/perl5=. This is the system
+perl. Here's the work around.
+
+#+BEGIN_SRC sh
+mv /usr/bin/perl5 /usr/bin/perl5-system
+ln -s /usr/local/bin/perl5 /usr/bin/perl5
+#+END_SRC
+
+It probably isn't kosher to leave =/usr/bin/perl5= pointing to the ports perl
+but I haven't had problems with it. If you're paranoid, you can do this:
+
+#+BEGIN_SRC sh
+rm /usr/bin/perl5
+mv /usr/bin/perl5-system /usr/bin/perl5
+#+END_SRC
+
+After the install, you will be asked if you want to change =/etc/mail/
+mailers.conf=. Say yes.
+
+** databases/mysql40-server
+
+We're going to use MySQL to store the user information.
+
+** databases/p5-DBD-mysql
+
+Needed so SpamAssassin can talk to MySQL.
+
+** /etc/rc.conf
+
+Disable all sendmail lines. (Courier will handle all of that.)
+
+#+BEGIN_EXAMPLE
+courier_enable="YES"
+sendmail_enable="NONE"
+#+END_EXAMPLE
+
+* Gentoo
+
+#+BEGIN_EXAMPLE
+USE="mysql ssl" emerge courier-authlib courier
+rc-update add courier default
+#+END_EXAMPLE

@@ -1,0 +1,43 @@
+#+TITLE: Renovations
+#+AUTHOR: PerlStalker
+#+DATE: [2012-03-25 Sun 16:52]
+#+begin_html
+---
+layout: post
+title: Renovations
+date: 2012-03-25 16:52
+comments: true
+categories: [meta]
+---
+#+end_html
+I've been a busy PerlStalker this week. As you may have noticed, this
+site has changed somewhat. I've recently decided to drop Drupal and
+switch to IkiWiki. Drupal has been good to me but it's really too
+heavy for my little blog. I have no use for most of the features that
+Drupal provides and it's not worth it to me to keep it up-to-date.
+
+IkiWiki has a couple of really nice things going for it. First, it
+spits out static pages. Except for search and comments, there's no need for
+any dynamic content on my site. Google and Disqus fill both needs. I
+could use the IkiWiki CGI but there's really no need.
+
+Second, I can compose my posts in emacs org-mode. It beats the heck
+out of writing all of my posts in straight HTML. I had to jump through
+a few hoops to use org-mode but it's working great now. I'll post more
+on that later.
+
+By default, IkiWiki uses a pretty nice syntax called markdown. I chose
+not to use it because org-mode is, in many ways, simpler and more
+powerful than markdown and I use it for all of my note taking and
+documentation at work.
+
+Now, a little housekeeping. One of the drawbacks to moving to IkiWiki
+was that I was unable to get it to use the original posting dates from
+Drupal. All of the imported posts have a line at the top that has the
+original posting date.
+
+Along those lines, you've probably already seen the slew of reposts in
+your feed reader. That's a symptom of the conversion to IkiWiki. This
+should be the only time it'll be a problem.
+
+Thanks for reading.

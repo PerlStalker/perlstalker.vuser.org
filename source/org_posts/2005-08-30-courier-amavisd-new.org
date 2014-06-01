@@ -1,0 +1,278 @@
+#+TITLE: Courier with Amavisd-new
+#+AUTHOR: PerlStalker
+#+DATE: [2005-08-30 Tue 13:55]
+#+begin_html
+---
+layout: post
+title: Courier with Amavisd-new
+date: 2005-08-30 13:55
+comments: true
+categories: [amavis, courier]
+---
+#+end_html
+/Originally posted at [2005-08-30 Tue 13:55]/
+
+* Introduction
+
+I've been using amavis-ng with courier-mta for over a year and for various
+reasons, I've been unhappy with it. I decided to switch to amavisd-new. This
+doc describes my setup.
+
+*Note:* I use FreeBSD. These docs should work for any OS that courier runs on
+with appropriate changes to paths, etc.
+
+* Installation
+
+** Needed Perl Modules
+
+This list is from INSTALL in the package.
+
+- Archive::Tar (archivers/p5-Archive-Tar)
+- Archive::Zip (archivers/p5-Archive-Zip) (1.09 or later is recommended!)
+- Compress::Zlib (archivers/p5-Compress-Zlib)
+- Convert::TNEF (converters/p5-Convert-TNEF)
+- Convert::UUlib (converters/p5-Convert-UUlib) (stick to the new versions!)
+- MIME::Base64 (converters/p5-MIME-Base64)
+- MIME::Parser (mail/p5-MIME-Tools) ( the patched MIME-tools by David F.
+    Skoll is recommended over 5.411, as it better handles broken/bad MIME
+    syntax: [[http://www.mimedefang.org/]] -> Download section. The new 6.2xx from
+    [[http://search.cpan.org/dist/MIME-tools/]] also includes these patches, and
+    more.
+- Mail::Internet (mail/p5-Mail-Tools) (1.58 or later have workarounds for
+    Perl 5.8.0 bugs)
+- Net::Server (net/p5-Net-Server)
+- Net::SMTP (net/p5-Net) (use libnet-1.16 or latter for performance)
+- Digest::MD5 (security/p5-Digest-MD5)
+- IO::Stringy (devel/p5-IO-stringy)
+- Time::HiRes (devel/p5-Time-HiRes) (use 1.49 or later, some older cause
+    problems)
+- Unix::Syslog (sysutils/p5-Unix-Syslog)
+- BerkeleyDB (databases/p5-BerkeleyDB)
+
+*Note:* amavisd-new has internal support for SpamAssassin via
+Mail::SpamAssassin. I don't use this because I handle spam filtering with
+dspam and spamc in a global maildrop filter.
+
+** Other Ports
+
+- lang/perl5
+- archivers/arc
+- archivers/arj
+- archivers/freeze
+- archivers/lzop
+- archivers/zoo
+
+** amavisd-new
+
+amavisd-new is written in perl so there is no special compilation
+needed.  However, courier-mta is not supported out-of-the-box. You can
+work around this in two ways: 1) run amavisd-new is front of courier
+as an SMTP proxy or 2) apply the included patch to run amavisd-new as
+a courierfilter. I chose option 2.
+
+FreeBSD has an amavisd-new port but I don't use it because I need to apply the
+courier patch. (You can make the port use the patch but that's more voodoo
+than I care to get into.) I downloaded amavisd-new-20040701 from the official
+site.
+
+** Applying the Patch
+
+Amavisd-new includes a patch for courier named =amavisd-new-courier.patch=
+which will add courier support.
+
+#+BEGIN_SRC sh
+cd amavisd-new-20040701
+patch < amavisd-new-courier.patch
+#+END_SRC
+
+** Installing amavisd-new
+
+#+BEGIN_SRC sh
+cp amavisd ../../sbin/amavisd
+chown root ../../sbin/amavisd
+chmod 755 ../../sbin/amavisd
+cp amavisd.conf
+cp amavisd.conf ../../etc/amavisd.conf.dist
+cp amavisd.conf ../../etc/amavisd.conf
+chown root ../../etc/amavisd.conf*
+chmod 644 ../../etc/amavisd.conf*
+#+END_SRC
+
+* Configuring amavisd-new
+
+amavisd-new looks for its config file in =/etc/amavisd.conf= by
+default. I don't like this so I put it in
+=/usr/local/etc/amavisd.conf=. If you do this, remember to start
+amavisd with =-c /usr/local/etc/amavisd.conf= or change the default
+location around line 7433 of amavisd.
+
+The config file is almost 1900 lines so I'm not going to go through it line by
+line. Instead, I'll just note what I changed. *Note:* I use clamav on my
+servers. You will need to adjust the virus scanners section to fit your
+installation.
+
+#+BEGIN_EXAMPLE
+$MYHOME = '/var/amavis';
+#+END_EXAMPLE
+
+=/var/amavis= needs to be writable by the user you run courier as.
+
+#+BEGIN_EXAMPLE
+$mydomain = 'amigo.net';
+#+END_EXAMPLE
+
+You should, of course, set this to your domain.
+
+#+BEGIN_EXAMPLE
+#$daemon_user  = 'vscan'; # (no default;  customary: vscan or amavis)
+#$daemon_group = 'sweep'; # (no default;  customary: vscan or amavis)
+#+END_EXAMPLE
+
+I comment these out because courier will start amavisd as the user it runs as.
+
+#+BEGIN_EXAMPLE
+$TEMPBASE = "$MYHOME/tmp";
+#+END_EXAMPLE
+
+Personal preference here. I like to keep =$MYHOME= clean.
+
+#+BEGIN_EXAMPLE
+$forward_method = undef;  # no explicit forwarding, Courier does it itself
+$notify_method = 'pipe:flags=q argv=perl -e $pid=fork();
+    if($pid==-1){exit(75)}elsif($pid==0){exec(@ARGV)}else{exit(0)}
+    /usr/sbin/sendmail -f ${sender} -- ${recipient}';
+#+END_EXAMPLE
+
+The =$notify_method= is wrapped here for clarity, it should be on one line
+in the config file.
+
+#+BEGIN_EXAMPLE
+$courierfilter_shutdown = 1; # (default 0)
+#+END_EXAMPLE
+
+Use the courierfilter shutdown method.
+
+#+BEGIN_EXAMPLE
+$max_servers  = 75;   # number of pre-forked children          (default 2)
+$max_requests = 20;   # retire a child after that many accepts (default 10)
+#+END_EXAMPLE
+
+=$max_servers= needs to be at least as large as the max number of courier
+esmtpd daemons. If it's too small, you will get messages that say something to
+the effect of: Mail filters unavailable
+
+#+BEGIN_EXAMPLE
+@bypass_spam_checks_maps  = (1);  # uncomment to DISABLE anti-spam code
+#+END_EXAMPLE
+
+I do spam filtering in a maildrop filter, so I turn filtering off here.
+
+#+BEGIN_EXAMPLE
+$insert_received_line = 0;
+#+END_EXAMPLE
+
+We have to turn this off because courierfilters are currently unable to change
+messages.
+
+#+BEGIN_EXAMPLE
+$unix_socketname = "/var/spool/courier/allfilters/amavisd"; # Courier socket
+$protocol = 'COURIER';           # uncomment if using Courier
+#+END_EXAMPLE
+
+=$unix_socket= is the socket used by courier to talk to amavisd and can be in
+either filters/ or allfilters/. See courierfilter(8) for the differences. You
+also need to set $protocol to 'COURIER' so that amavisd and courier are able
+to communicate.
+
+#+BEGIN_EXAMPLE
+#$inet_socket_port = 10024;
+#+END_EXAMPLE
+
+Comment this out to prevent amavisd-new from listening for SMTP connections.
+
+#+BEGIN_EXAMPLE
+$SYSLOG_LEVEL = 'mail.info';
+$log_level = 0;
+#+END_EXAMPLE
+
+=mail.info= is the default, I include this here to encourage you to think
+about where you want this. You may want to turn =$log_level= up while you
+are testing.
+
+#+BEGIN_EXAMPLE
+$final_virus_destiny      = D_REJECT;  # (defaults to D_DISCARD)
+$final_banned_destiny     = D_REJECT;  # (defaults to D_BOUNCE)
+$final_spam_destiny       = D_REJECT;  # (defaults to D_BOUNCE)
+#+END_EXAMPLE
+
+We have to reject banned messages because we can't create bounces in a
+courierfilter.
+
+#+BEGIN_EXAMPLE
+$virus_admin = undef;
+#+END_EXAMPLE
+
+I don't want to see the admin notices. You may want to.
+
+#+BEGIN_EXAMPLE
+$mailfrom_notify_admin     = "postmaster\@$mydomain";
+$mailfrom_notify_recip     = "postmaster\@$mydomain";
+$mailfrom_notify_spamadmin = "postmaster\@$mydomain";
+#+END_EXAMPLE
+
+Feel free to set the from messages used the From: header of notifications.
+
+#+BEGIN_EXAMPLE
+#$QUARANTINEDIR = '/var/virusmails';
+#$virus_quarantine_to  = 'virus-quarantine';
+$banned_quarantine_to     = undef;     # local quarantine
+$bad_header_quarantine_to = undef; # local quarantine
+$spam_quarantine_to       = undef;       # local quarantine
+#+END_EXAMPLE
+
+I don't quarantine infected messages.
+
+#+BEGIN_EXAMPLE
+$X_HEADER_TAG = undef;
+$X_HEADER_LINE = undef;
+#$undecipherable_subject_tag = '***UNCHECKED*** ';
+$defang_virus  = 0;  # default is false: don't modify mail body
+$defang_banned = 0;  # default is false: don't modify mail body
+#+END_EXAMPLE
+
+courierfilters are not allowed to change the content of messages they process
+so you have to turn off all the options that try to change the message.
+
+#+BEGIN_EXAMPLE
+['ClamAV-clamd',
+#   \&ask_daemon, ["CONTSCAN {}\n", "/var/run/clamav/clamd"],
+   \&ask_daemon, ["CONTSCAN {}\n", "127.0.0.1:3310"],  
+   qr/\bOK$/, qr/\bFOUND$/,
+   qr/^.*?: (?!Infected Archive)(.*) FOUND$/ ],
+#+END_EXAMPLE
+
+Turn on scanning with clamd. Note: I'm talking to clamd on 3310/tcp. You can
+configure amavisd-new to talk to clamd on a unix socket if you want.
+
+#+BEGIN_EXAMPLE
+['always-clean', sub {0}],
+#+END_EXAMPLE
+
+I want to allow mail if, for some reason, all the other scanners fail.
+
+* Enabling amavisd-new in Courier.
+
+Now that amavisd-new is ready, we need to make it work with courier. 
+[[http://www.ijs.si/software/amavisd/README.courier][README.courier]] has some good notes on getting things setup. I use the 'Courier
+Startup/Shutdown Mode' option.
+
+*Note:* The name of the link in
+=/usr/local/etc/courier/filters/active= must match the name of the
+unix socket defined in =$unix_socketname= in amavisd.conf.
+
+#+BEGIN_SRC sh
+ln -s /usr/local/sbin/amavisd /usr/local/etc/courier/filters/active/amavisd
+#+END_SRC
+
+You're done. Happy scanning.
+

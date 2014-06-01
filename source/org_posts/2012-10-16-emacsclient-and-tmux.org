@@ -1,0 +1,188 @@
+#+TITLE: Emacs and tmux
+#+AUTHOR: PerlStalker
+#+begin_html
+---
+layout: post
+title: Emacs and tmux
+date: 2012-10-16 19:29
+comments: true
+categories: [emacs, tmux]
+---
+#+end_html
+
+
+Hello. My name is PerlStalker and I'm an emacs user. I love emacs and
+use it for nearly everything but there are a few things it's not good
+at. ("Like editing," I hear all you warped vi users cry.) Among them,
+and most important to me, are window management and terminals.
+
+Let's start with terminals. I use eshell from time to time to do quick
+and dirty things on the command line but I always run into weird
+things that don't work like I expect. For example, there's a little
+one liner I run to convert the mp4 videos of my podcast that I get
+from YouTube to mp3. Eshell chokes on it. The more powerful and better
+featured term-mode and it's more friendly cousin multi-term-mode are
+pretty good but I still run into tools, from time to time, that break
+it. (To be fair, it seems to be better in emacs 24 but I haven't
+played with it as much.)
+
+My main use of terminals, however, is logging into Linux servers and
+making changes. I can do weird things with eshell and tramp to edit
+files but it's kinda slow. If I try to edit a file on the server
+through an editor in term-mode, all sorts of things break.
+
+The other thing that emacs is bad at is window management. A little
+terminology before I go further, emacs uses the term "frames" for what
+X11 and Microsoft call windows. The term windows is used by emacs when
+it splits a frame to display multiple buffers. Emacs can split frames
+horizontally and vertically all day and not have a problem. Where
+things get hairy is if you use something like gnus which feels like it
+can do whatever it wants to your window layout at anytime. It's a real
+pain in the neck when I have multiple buffers opened, looking at
+different things, then hit =M-x gnus= to check my email and *boom* all
+of my buffers have been hidden in favor of whatever gnus wants to
+do. Not cool, emacs. Not cool.
+
+However, something that is good at handling window layouts and shells
+is tmux. Tmux is similar to screen in that it provides an "always-on"
+session that you can access from multiple places. Where it beats
+screen is in its scriptability and window management. Those two
+features make it especially nice for what I'm going to show you. On a
+side note, you can apply most of this to screen with a little work
+but it was really easy to do in tmux.
+
+The super secret ingredient to all of this is emacs server and
+emacsclient. Emacs server allows you to connect to a running instance
+of emacs to do things (like edit files or run elisp functions) without
+starting a whole new emacs instance. That makes it really fast. You
+can start emacs server by running =M-x server-start= or have it happen
+automatically when emacs starts by putting =(server-start)= in
+=$HOME/.emacs=. You can even use =emacs --daemon= to start emacs in
+the background when you log in or with the =@reboot= tag in cron to
+start it when the machine starts. The =--daemon= option has the
+fringe benefit of leaving emacs running even if you log out.
+
+Now to how this all works with tmux. First, I need to redefine
+"window". (Don't you just love overloading definitions?) Basically,
+tmux only lets you see one window at a time. You can switch between
+them but you can never see more than one. However, you can split them
+into "panes" and this is where tmux shines. I'm not going to get into
+here but you can see [[http://www.openbsd.org/cgi-bin/man.cgi?query=tmux&sektion=1][the man page]] to see how easy it is to create,
+resize and navigate between panes.
+
+The first problem I needed to solve was to quickly and easily ssh
+into servers. Based on [[http://www.openbsd.org/cgi-bin/man.cgi?query=tmux&sektion=1][the examples in the docs]], I added these lines
+to my =$HOME/.tmux.conf=.
+
+#+begin_example
+bind-key S   command-prompt -p "host" "split-window 'ssh %1'"
+bind-key C-s command-prompt -p "host" "new-window -n %1 'ssh %1'"
+#+end_example
+
+If I hit the prefix (=C-b= by default, =C-z= in my case) followed by
+=C-s=, tmux prompts me for a host name (which can also be =user@host=)
+and then opens a new window for the ssh session. If I do =C-z S=
+instead, it opens the ssh session in a new pane in the same
+window. Using a pane rather than a new window is useful when I'm
+checking things on multiple servers at the same time. The window or
+pane closes when the ssh session is finished.
+
+Now for the fun. Here's where emacsclient comes in. Let's say that I
+want to open emacs inside tmux. By adding this magic to =.tmux.conf=
+and reloading the config I can open emacs in a new window (=C-z y=) or
+new pane (=C-z C-y=).
+
+#+begin_example
+bind-key y   new-window -n "emacs"  "emacsclient -nw"
+bind-key C-y split-window "emacsclient -nw"
+#+end_example
+
+Emacs opens extremely quickly because it's already running. Even
+better, because it's emacsclient, you can switch to any buffer that
+you already have open in other clients, even if you opened it in the
+X11 version of emacsclient.
+
+That's great but there are other things I want to do in emacs besides
+edit files. For example, suppose I want to jump into gnus to check my
+email.
+
+#+begin_example
+bind-key g   new-window -n "gnus" "emacsclient -nw --eval '(gnus)'"
+bind-key C-g split-window "emacsclient -nw --eval '(gnus)'"
+#+end_example
+
+=C-z g= opens gnus in a new tmux window and =C-z C-g= opens gnus in a
+new pane.
+
+I'm using a personal convention that whatever key I bind, by itself,
+opens in a new window and control plus that key opens in a new pane.
+
+If you can script it in elisp, you can make it a shortcut in
+tmux. I have shortcuts to open w3m ...
+
+#+begin_example
+bind-key W   new-window -n "w3m" "emacsclient -nw --eval '(w3m)'"
+bind-key C-w split-window "emacsclient -nw --eval '(w3m)'"
+#+end_example
+
+... and I have one to open the RT command line with emacsclient set as
+the editor in a multi-term buffer. (The editor magic is hidden in a
+separate script (=~/bin/rtc=) to get around some restrictions with the
+RT command line and the =EDITOR= environment variable.)
+
+#+begin_example lisp
+(defun rtc ()
+  (interactive)
+  (if (get-buffer "*rtc*")
+      (switch-to-buffer "*rtc*")
+    (rtc-create)
+    )
+)
+
+(defun rtc-create ()
+  (eshell t)
+  (rename-buffer "*rtc*")
+  (goto-char (point-max))
+  (eshell-kill-input)
+  (insert "~/bin/rtc")
+  (eshell-send-input)
+)
+#+end_example
+
+Then in =.tmux.conf=:
+
+#+begin_example
+bind-key C-r split-window "emacsclient -nw --eval '(rtc)'"
+#+end_example
+
+Now I can open my ticket list and edit tickets in a pane while I
+actually work on the ticket in another pane.
+
+You could use this as an example for opening any shell app within
+emacs. Obviously, if you just want to bring up the app outside of
+emacs, you can do something magical like this ...
+
+#+begin_example
+bind-key C-m command-prompt -p "man" "split-window 'exec man %%'"
+#+end_example
+
+... which prompts you for a man page when you hit =C-z C-m= then opens
+it in a new pane. It's super convenient if you want to check the docs
+for a tool you're using. (I could have used emacs man- or woman-mode
+instead of calling man directly but this was simple and easy.)
+
+If, for some strange reason, you would rather use vi to edit a file,
+you could simply replace =man= in the previous command with =vi= and
+change the key binding.
+
+For even more special sauce, you could use [[https://launchpad.net/byobu][byobu]] with tmux to
+display any number of fun widgets at the bottom of the window. I use a
+custom script combined with gcalcli to display the next thing I have
+coming up on my calendar.
+
+The combination of tmux (+byobu) and emacsclient gives me a very
+efficient and very powerful way to get things done at work. If you're
+an emacs user, I highly recommend looking into emacsclient even if
+you don't need tmux or screen but combining the two makes for much
+joy and happiness.
+

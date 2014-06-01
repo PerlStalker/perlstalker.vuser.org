@@ -1,0 +1,449 @@
+#+TITLE: Courier and dspam
+#+AUTHOR: PerlStalker
+#+DATE: [2006-12-08 Fri 14:34]
+#+begin_html
+---
+layout: post
+title: Courier and dspam
+date: 2006-12-08 14:34
+comments: true
+categories: [courier, dspam]
+---
+#+end_html
+/Originally posted at [2006-12-08 Fri 14:34]/
+
+I currently use SpamAssassin on the mail cluster at work and it works pretty
+well. Unfortunately, it doesn't work well enough according to many of our
+customers and, more importantly, my boss. So, I worked out this way to use
+dspam and SpamAssassin.
+
+"Why use both?" you might ask. The answer is "I don't, really." What I do is
+provide dspam as an opt-in service and leave SpamAssassin as the default
+filter for those that don't want to be bothered with the reporting that dspam
+requires.
+
+Some users don't want to be troubled with reporting spam or false positives or
+they really dislike the =!DSPAM= tag that's added to messages filtered with
+dspam but they still want some measure of spam filtering. This setup provides
+that.
+
+* Needed Ports
+
+  - =databases/mysql41-server= You only need this if you want to use MySQL as
+    the storage driver and have the server on the same box.
+  - =databases/mysql41-client= You only need this if you want to use MySQL as
+    the storage driver.
+
+You might have noticed that mail/dspam is not on that list. That is because,
+at this point, the port is not general enough for what I want to do. I suppose
+I could change that, but I haven't gotten around to it yet.
+
+* Building dspam
+
+Before you go any farther, be sure you have read [[http://www.nuclearelephant.com/projects/dspam/#documentation][the dspam documentation]].
+
+Download the latest version of dspam from [[http://www.nuclearelephant.com/projects/dspam/#download][the dspam download page]].
+
+: ./configure
+
+*Note:* The complete list of options for configure can seen by running
+ =./configure --help=.
+
+Here are the options I used when building dspam. I'll explain them in more
+detail below.
+
+#+BEGIN_SRC sh
+./configure \
+        --bindir=/usr/local/dspam/bin \
+        --sbindir=/usr/local/dspam/sbin \
+        --with-dspam-group=courier \
+        --with-storage-driver=mysql_drv \
+        --with-mysql-includes=/usr/local/include/mysql \
+        --with-mysql-libraries=/usr/local/lib/mysql \
+        --enable-delivery-to-stdout \
+        --with-userdir=/var/mail/virtual/dspam \
+        --enable-large-scale \
+        --enable-alternative-bayesian \
+        --enable-spam-delivery \
+        --enable-homedir-dotfiles \
+        --enable-opt-in \
+        --enable-virtual-users \
+        --enable-whitelist \
+        --enable-source-address-tracking \
+        --bindir=/usr/local/dspam/bin \
+        --sbindir=/usr/local/dspam/sbin
+#        --enable-debug
+#        --enable-verbose-debug
+#+END_SRC
+
+
+When I build apps by hand instead of via the ports, I like to put them in a
+seperate directory under =/usr/local=. Feel free to leave out =--bindir= and
+=--sbindir= to have dspam install itself under =/usr/local/{bin,sbin}=.
+
+: --with-dspam-group=courier
+
+Maildrop runs as group courier. I needed to set this to let the courier group
+run dspam.
+
+#+BEGIN_EXAMPLE
+        --with-storage-driver=mysql_drv
+        --with-mysql-includes=/usr/local/include/mysql
+        --with-mysql-libraries=/usr/local/lib/mysql
+#+END_EXAMPLE
+
+I'm using MySQL to store account information for dspam. *Note:* The
+FreeBSD port puts the MySQL headers and libraries in
+=/usr/local/include/mysql= and =/usr/local/lib/mysql=,
+respectively. You may need to adjust them for your setup.
+
+#+BEGIN_EXAMPLE
+        --enable-delivery-to-stdout
+        --enable-spam-delivery
+#+END_EXAMPLE
+
+dspam, by default, can do it's own delivery and will quarantine spam when it
+finds it. I already quarantine spam with SpamAssassin in each user's Spam
+folder, and I want to treat dspam detected spam the same way. So, in order to
+allow maildrop to do the quarantine, we need to tell dspam to deliver all
+mail, spam or ham, to standard out.
+
+:        --with-userdir=/var/mail/virtual/dspam
+
+This is the directory where dspam will store much of its working information.
+This can be where ever you want. I put it on the NFS share for the mail dirs
+that I share to the nodes in my mail cluster.
+
+:        --enable-large-scale
+
+This changes how dspam organizes the files in the userdir defined above.
+
+:        --enable-alternative-bayesian
+
+I enabled the alternative baysian to help determine what messages are spam. It
+is very important to read the docs before choosing which statistical methods
+to use. Choosing the wrong one (or wrong combination) can really screw over
+your spam detection if you're not careful.
+
+:        --enable-homedir-dotfiles
+
+I want to allow users to opt-in or opt-out by creating file in their home
+directory. At least, that's the idea. This didn't work for me with maildrop
+and virtual users. I'm still trying to figure out why. If you know, let me
+know and I'll update this page.
+
+:        --enable-opt-in
+
+I require my users to opt-in to dspam because of the delay in catching spam
+due to training the filter and because there is no explicit whitelist. Do not
+include this if you want dspam on by default.
+
+:        --enable-virtual-users
+
+Turn this on if you are using virtual users.
+
+: --enable-whitelist
+
+My biggest (and its not that big really) complaint about dspam is that it
+doesn't have whitelists. This allows for automatic whitelisting of address
+under certain conditions.
+
+: --enable-source-address-tracking
+
+I turned this on because, at some point, I want to some analysis of spam
+addresses. Feel free to leave this off.
+
+#+BEGIN_EXAMPLE
+        --enable-debug
+        --enable-verbose-debug
+#+END_EXAMPLE
+
+These are useful when for debugging when you are first setting up dspam. You
+should not use them in when you deploy in a production environment.
+
+* Build and Install
+
+Run =make && make install= in =build= and install dspam.
+
+When you are testing the global maildrop filter, you may want to build with
+=--enable-opt-in= and opt-in your test accounts. This way you can verify that
+the whole system works without messing with your users.
+
+** Configuration
+
+dspam has very little post-build configuration, since ost of the configuration
+happened at build time.
+
+** trusted.users
+
+This file contains the list of users that can suid when running dspam.
+
+#+BEGIN_EXAMPLE
+root
+courier
+smmsp
+daemon
+mailnull
+#+END_EXAMPLE
+
+** mysql.data
+
+This file contains the information that dspam needs to connect to MySQL. The
+format is as follows. See =tools.mysql_drv/README= in the dspam source package
+for details.
+
+#+BEGIN_EXAMPLE
+HOSTNAME
+PORT
+USERNAME
+PASSWORD
+DATABASE
+#+END_EXAMPLE
+
+* Setup MySQL
+
+The dspam package comes with SQL files that you can use to setup MySQL
+in =tools.mysql_drv/=. You should take this opportunity to read the
+=README= file in that directory.
+
+dspam now ships with two mysql_ojects files optimized for spam and speed. I
+use the speed optimized file but modify it to use INNODB tables instead of
+MyISAM tables.
+
+#+BEGIN_SRC sh
+cd tools.mysql_drv/
+mysql -u root -p DATABASE < mysql_objects.sql
+mysql -u root -p DATABASE < virtual_users.sql
+#+END_SRC
+
+*Note:* The last command is only required if you are using virtual users.
+
+If dspam is going to use a different username than to access the dspam_*
+tables, you will need to create the user and give it access to those tables
+with the grant command.
+
+* Testing dspam
+
+See section 1.2 of the README for testing instructions.
+
+* maildroprc
+
+dspam is all set, now it's time to add it to maildroprc. Below, is a sample
+maildroprc.
+
+#+BEGIN_EXAMPLE
+import SENDER
+import HOME
+
+if ($SENDER ne "")
+{
+         FROM=$SENDER
+}
+else
+{
+         FROM="unknown"
+}
+
+CLEAN_FROM=escape($FROM);
+# Spam Filter
+xfilter "/usr/local/dspam/bin/dspam --user $LOGNAME"
+
+if (/^X-DSPAM-Result:/:h)
+{
+}
+else
+{
+         xfilter "/usr/local/bin/spamc -u $LOGNAME"
+}
+
+if (/^X-Spam-Status: Yes/:h || /^X-DSPAM-Result: Spam/:h)
+{
+         # See if the Spam folder exists.
+         `test -d "./Maildir/.Spam/"`
+         if ($RETURNCODE != 0)
+         {
+                 # If not, copy one from the pre-existing skel directory.
+                 `cp -Rp /usr/local/etc/courier/skel/Maildir/.Spam ./Maildir/`
+         }
+         to "./Maildir/.Spam/."
+}
+#+END_EXAMPLE
+
+*Note:* For some reason my system is having problems with nots. Hence,
+the jacked-up if-else in that file. I would expect a simple =if (!
+/^X-DSPAM-Result:/:h)= to work, but it doesn't.
+
+The observant reader will notice that if dspam runs (and adds it's
+=X-DSPAM-Result= header), spamc doesn't run. This is intentional. I originally
+had =if (/^X-DSPAM-Result: Innocent/:h)= which would run spamc if dspam didn't
+think the message was spam. I found, that once dspam was trained, spamc never
+found different spam.
+
+It also caused problems with the training process for dspam. Let me explain
+with an example. Suppose a new dspam user gets a message that dspam thinks is
+innocent but SpamAssassin sees as spam. The message gets tagged as spam with
+the X-Spam-Status: Yes header and maildrop happily moves the message to the
+Spam folder. Our user is happy because the message is caught and ignores the
+message (or deletes it). What our user doesn't know, is that dspam didn't
+catch the message and so scores it as innocent. That will raise the
+probability that similar messages are are treated as innocent, thus making
+dspam less effective. (The whole reason for putting dspam in place was that is
+was more effective than SpamAssassin.)
+
+I set it up this way for another reason, too. As I stated earlier, my users
+have to opt-in to dspam. This setup provides spam filtering through
+SpamAssassin for those users that choose not to use dspam. It also you to
+still use SpamAssassin as a default scanner if your users choose to opt-out of
+an on-by-default dspam setup.
+
+* Aliases
+
+Each dspam user will need aliases setup to report spam and false positives to.
+I use =.courier= files in the user's home directory.
+
+**  $HOME/.courier-spam
+
+Users report spam by sending it to a special alias on their account created by
+adding -spam to the user name portion of their address. E.g. user@domain would
+send to user-spam@domain.
+
+: |/usr/local/dspam/bin/dspam --user user@domain --addspam
+
+** $HOME/.courier-fp
+
+In the case of false positives, users report it by sending it to a another
+alias on their account created by adding -fp to the user name portion of their
+address. E.g. user@domain would send to user-fp@domain.
+
+: |/usr/local/dspam/bin/dspam --user user@domain --falsepositive
+
+The suffixes can, of course, be changed by changing the name of the .courier
+file.
+
+It should be possible to setup a global aliases instead of aliases in users'
+home directories. Simply create =/usr/local/etc/courier/aliasdir/.courier-spam=
+with the following (untested) line.
+
+: |/usr/local/dspam/bin/dspam --user $LOCAL@$HOST --addspam
+
+Or you can create a spam user in each domain you host with a .courier-default
+that looks like the following.
+
+: |/usr/local/dspam/bin/dspam --user $EXT@$HOST --addspam
+
+The false positive alias would be similar.
+
+*Note:* Don't forget to run =makealiases= if you update the global alias file.
+
+* Testing Courier, maildrop and dspam
+
+The nicest way I found to test this setup was to build dspam with
+=--enable-opt-in= and then opt-in my test accounts. This way you can test your
+production setup without screwing up mail delivery for the rest of your users.
+When you're satisfied that everything is working properly, you can then
+rebuild dspam without =--enable-opt-in= and you're good to go.
+
+* dspam Maintenance
+
+dspam comes with a couple of tools to keep your database clean: =dspam_clean=
+and =tools.mysql_drv/purge.sql=. These tools are dscribed in the dspam
+documentation and should be set to run periodically as described in those
+docs.
+
+I modified =purge.sql= to elimitate some locking issues I was having and, in the
+process, made it 3 times faster. Basically, I combined the three deletes on
+=dspam_token_data= into one.
+
+#+BEGIN_SRC sql
+set @a=to_days(current_date());
+
+lock table dspam_token_data write;
+delete from dspam_token_data
+   where
+    ((innocent_hits*2) + spam_hits < 5 and @a-to_days(last_hit) > 15)
+    or (innocent_hits = 1 and @a-to_days(last_hit) > 7)
+    or (@a-to_days(last_hit) > 20)
+   ;
+unlock table;
+
+lock table dspam_signature_data write;
+delete from dspam_signature_data
+   where @a-to_days(created_on) > 14;
+unlock tables;
+#+END_SRC
+
+Well, the locking issues went away (because I was locking the tables) but I
+had more problems. The delete was taking so long to run that the system kept
+maxing out the maximum number of connections. To fix this, I wrote a perl
+script that deletes tokens and signatures 100 at a time and sleeps for a
+couple of seconds between deletes. That gives enough time for other things to
+happen between deletes. (You can see the SQL from above on lines 21-26 and
+30-32.)
+
+#+BEGIN_SRC perl -n
+#!/usr/local/bin/perl
+use warnings;
+use strict;
+
+use DBI;
+
+my $db_name = 'Accounts';
+my $db_host = 'localhost';
+my $db_user = 'root';
+my $db_pass = 'secret';
+
+my $dbh = DBI->connect("DBI:mysql:".$db_name.':'.$db_host,
+        $db_user,
+        $db_pass);
+
+my $now = 'to_days(current_date())';
+
+my @sql = ();
+
+push @sql, <<"TOKEN";
+delete LOW_PRIORITY from dspam_token_data
+where
+   ((innocent_hits*2) + spam_hits < 5 and $now-to_days(last_hit) > 15)
+   or (innocent_hits = 1 and $now-to_days(last_hit) > 7)
+   or ($now-to_days(last_hit) > 20)
+limit 100
+TOKEN
+    ;
+push @sql, << "SIG";
+delete LOW_PRIORITY from dspam_signature_data
+where $now-to_days(created_on) > 14
+limit 100
+SIG
+    ;
+
+#print join "\n", @sql;
+
+foreach my $sql (@sql) {
+    my $tot = 0;
+    while (my $rv = $dbh->do($sql)) {
+if ($rv <= -1) {
+    warn $dbh->errstr, "\n";
+    last;
+} elsif ($rv == 0) {
+    last;
+}
+#print $tot += $rv;
+sleep 2;
+    }
+    #print "\n";
+}
+#+END_SRC
+
+One thing you might have noticed is that I have removed the locks. Part of the
+reason is that I moved to INNODB tables which do row-level locking so it's not
+as much of a problem. Another part is that I changed the deletes to be low
+priority so that they don't interfere with the normal mail flow. (See lines 21
+and 30.) Finally, if the script fails to acquire a lock, it simply tries
+again. (I occasionally see a failed lock or two on the dspam_signature_data
+table but I haven't figured out how to make those go away. As I said, it's not
+a problem but it doesn't feel "clean.")
+
+If you want to spend the time, you can add an order by last_hit clause to the
+SQL commands so that the oldest tokens and signatures are deleted first. I
+didn't feel the need to spend CPU and memory on it though.
+

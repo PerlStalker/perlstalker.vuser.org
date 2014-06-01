@@ -1,0 +1,179 @@
+#+TITLE: Using AMaViS-ng with Courier
+#+AUTHOR: PerlStalker
+#+DATE: [2005-02-22 Tue 08:33]
+#+begin_html
+---
+layout: post
+title: Using AMaViS-ng with Courier
+date: 2005-02-22 08:33
+comments: true
+categories: [amavis, courier]
+---
+#+end_html
+/Originally posted on [2005-02-22 Tue 08:33]/
+
+*Note:* I have switched to amavisd-new. These docs should still work
+ but I am no longer maintaining them. See [[http://perlstalker.vuser.org/blog/2005/08/30/courier-amavisd-new/][Courier with Amavisd-new]].
+
+These intructions walk you through the setup of AMaViS-ng with the
+F-Prot virus scanner from Frisk. It should be fairly trivial to use
+another virus scanner, such as clamav, instead.
+
+* Needed Ports
+- archivers/lha
+- archivers/unarj or archivers/arj
+- archivers/unrar or archivers/rar
+- archivers/zoo or archivers/unzoo
+- archivers/arc
+- archivers/p5-Compress-Zlib
+- archivers/p5-Archive-Tar
+- archivers/p5-Archive-Zip
+- archivers/bzip2
+- devel/p5-IO-stringy
+- converters/p5-MIME-Base64
+- converters/p5-Convert-UUlib
+- converters/p5-Convert-TNEF
+- mail/p5-MIME-Tools
+- mail/p5-Mail-Tools
+- devel/p5-Config-IniFiles
+- devel/p5-File-MMagic
+- sysutils/p5-Unix-Syslog
+
+* F-Prot
+You need to install wget (ftp/wget) and unzip (archivers/unzip) for check-updates.sh.
+
+#+BEGIN_SRC sh
+cd /usr/local
+tar -zxf /path/to/fp-freebsd-eb-<ver>.tar.gz
+ln -s /usr/local/f-prot/f-protd  /usr/local/sbin/f-protd
+ln -s /usr/local/f-prot/f-prot.sh  /usr/local/bin/f-prot
+ln -s /usr/local/f-prot/man8/f-protd.8 /usr/local/man/man8/
+ln -s /usr/local/f-prot/man8/f-prot.8 /usr/local/man/man8/
+ln -s /usr/local/f-prot/man8/check-updates.sh.8 /usr/local/man/man8/
+chmod +x /usr/local/f-prot/f-prot*
+chmod +x /usr/local/f-prot/check*
+cp /usr/local/f-prot/f-protd.rc /usr/local/etc/rc.d/f-prot.sh
+#+END_SRC
+
+Instead of the last copy, you can do (at least on my systems):
+
+#+BEGIN_SRC sh
+ln -s /usr/local/f-prot/f-protd.sh /usr/local/etc/rc.d/f-prot.sh
+#+END_SRC
+
+* AMaVis
+We're going to use amavis-ng because it has built in support for
+courierfilters and f-protd. Unfortunatly, there is no port for it yet.
+
+*Note:* Actually, as of this writting (Oct. 28, 2003), f-protd support
+is very poor. One of these days, I may do something about that.
+
+** Download amavis-ng
+amavis-ng is not available in the ports collection, so we'll do it the
+"old fashioned" way. Download amavis-ng from
+[[http://www.amavis.org/download.php3#amavis-ng]]. ([[http://unc.dl.sourceforge.net/sourceforge/amavis/amavis-ng_0.1.6.4.orig.tar.gz]])
+
+** Extract
+#+BEGIN_SRC sh
+cd /usr/local
+tar -zxf tar -zxf amavis-ng_0.1.6.4.orig.tar.gz
+#+END_SRC sh
+** Patch
+I wrote a [[upload/AMAVIS.pm.diff][patch]] to disable the quarantine.
+
+#+BEGIN_SRC sh
+cd amavis-ng-ver.orig
+patch < AMAVIS.pm.diff
+#+END_SRC
+
+** Build/Install
+Make sure you build amavis-ng with the same version of perl as couirer or you could run into a problems later.
+
+#+BEGIN_SRC sh
+perl Makefile.PL
+make && make install
+#+END_SRC
+
+** Fix things
+#+BEGIN_SRC sh
+cp -R etc /usr/local/etc/amavis-ng
+ln -s /usr/local/etc/amavis-ng /etc/amavis-ng
+cp magic.mime /usr/local/etc/amavis-ng
+#+END_SRC
+
+** Configure
+#+BEGIN_EXAMPLE
+[general]
+mail-transfer-agent = Courier
+virus-scanner = FPROT
+notifiers = Recipients
+x-header = true
+x-header-tag = X-Scanned-By
+x-header-line = AMaViS-ng
+magic file = /usr/local/etc/amavis-ng/magic.mime
+
+[paths]
+unpackdir = /var/tmp/
+do quarantine = no
+cleanup = yes
+
+[Logging]
+syslog = mail|info
+syslog loglevel = 3
+
+[Notify]
+local domain = .*amigo\.net
+mail from = postmaster@amigo.net
+admin = postmaster@amigo.net
+
+[Courier]
+sendmail = /usr/sbin/courier
+args =
+
+[external]
+bzip2 = /usr/bin/bzip2
+;arj = /usr/bin/arj
+;nomarch = /usr/bin/nomarch
+gzip = /usr/bin/gzip
+;unzoo = /usr/bin/unzoo
+
+;; lha, unrar are non-free.
+; lha = /usr/bin/lha
+; unrar = /usr/bin/unrar
+
+;; For arc zoo, unarj, there are free alternatives whcih are enabled
+;; above.
+arc = /usr/local/bin/arc
+zoo = /usr/local/bin/zoo
+unarj = /usr/local/bin/unarj
+
+[security]
+uid = courier
+gid = courier
+
+[FPROT]
+fprot = /usr/local/bin/f-prot
+#+END_EXAMPLE
+
+* Enable in Courier
+#+BEGIN_SRC sh
+echo "all" > /usr/local/etc/courier/filters/perlfilter-mode
+echo "30" > /usr/local/etc/courier/filters/perlfilter-numprocs
+echo "/usr/local/bin/amavis" > /usr/local/etc/courier/filters/perlfilter
+ln -s /usr/local/libexec/filters/perlfilter /usr/local/etc/courier/filters/active/perlfilter
+#+END_SRC
+
+** Starting/Stoping the Filter
+See courierfilter.
+
+#+BEGIN_SRC sh
+courierfilter stop
+courierfilter start
+courierfilter restart
+#+END_SRC
+
+If everything is working, you should see a message in your mail log
+that says "Perlfilter starting." If you see messages about not being
+able to find AMAVIS.pm. it means that you used different verions of
+perl to build.
+

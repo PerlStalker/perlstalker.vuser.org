@@ -1,0 +1,323 @@
+#+TITLE: FreeBSD AutoUpgrades
+#+AUTHOR: PerlStalker
+#+DATE: [2005-04-06 Wed 13:33]
+#+begin_html
+---
+layout: post
+title: FreeBSD AutoUpgrades
+date: 2005-04-06 13:33
+comments: true
+categories: [freebsd]
+---
+#+end_html
+/Originally posted at [2005-04-06 Wed 13:33]/
+
+Updating a FreeBSD box is fairly simple but it can still be a pain when you
+have lots of them to upgrade. I have put together this little tutorial as an
+"It works for me" example. There may be better ways of doing this.
+
+* Building Machine
+
+The first thing you will need is a building machine. This box will download
+and build the kernel, userland apps and libraries for every machine. Once
+built, we'll share them via NFS to the other boxes.
+
+* Getting Updates
+
+You will need to have installed the system source before hand. If you haven't,
+you can use sysinstall to install the source package. You all also need cvsup
+to fetch the updated source. (It's in the ports collections as net/cvsup and
+net/cvsup-without-gui.) The appendix A of the handbook has instructions on
+configuring cvsup.
+
+#+BEGIN_SRC sh
+cd /usr/src
+make update
+#+END_SRC
+
+** Building World
+
+Once the update has finished you can start building. We'll start by building
+the userland.
+
+#+BEGIN_SRC sh
+make buildworld
+#+END_SRC
+
+** Building the Kernel
+
+Let's take a minute before we build the kernel and talk about how we deal with
+handling different kernels for different boxes. At some point in your career
+you'll decide that you need a custom kernel for one or more of your servers.
+This is fine. The handbook suggests using a custom kernel configuration for
+each box. That will work but it becomes impractical if you have lots of boxes.
+In most cases, the kernel configs will be the same, or at least, very similar.
+If possible, try to factor out those common things into a standard kernel that
+you can use on many boxes. For example, I have a standard kernel for most of
+my boxes, a SMP kernel for my multi-proc boxes and a kernel for routers.
+
+You select the kernel you want on my setting KERNCONF in /etc/make.conf.
+
+#+BEGIN_EXAMPLE
+KERNCONF=STANDARD
+#+END_EXAMPLE
+
+The builder machine needs to know which kernels to build so we'll put a list
+instead of just one like above. builder's kernel is the first one on the list.
+*Note:* Don't forget to build a GENERIC kernel.
+
+#+BEGIN_EXAMPLE
+KERNCONF=STANDARD STANDARD-SMP ROUTER GENERIC
+#+END_EXAMPLE
+
+Once you're kernels are configured, it's time to build.
+
+#+BEGIN_EXAMPLE
+make buildkernel
+#+END_EXAMPLE
+
+** Exporting
+
+Now that you've built your new version of FreeBSD, it's time to get them to
+your other boxes. The simple way is via NFS. Security Note: NFS has several
+security issues that are beyond the scope of this article. Make sure you take
+appropriate steps to secure your NFS exports.
+
+You'll need to export /usr/src and /usr/obj to the remote machines. Add /usr
+to /etc/exports.
+
+#+BEGIN_EXAMPLE
+/usr -maproot=root -alldirs servers
+#+END_EXAMPLE
+
+*Note:* You can export /usr read-only for added security.
+
+* Client Servers
+
+Now that the building machine is done we can look at the client setup.
+
+** Mounting
+
+Let's add /usr/src and /usr/obj to /etc/fstab. This is not strictly required
+but can make life a little easier.
+
+#+BEGIN_EXAMPLE
+builder:/usr/src /usr/src nfs rw 0 0
+builder:/usr/obj /usr/obj nfs rw 0 0
+#+END_EXAMPLE
+
+Now we can mount /usr/src with a simple mount /usr/src.
+
+** Installing
+
+I'm going to talk about the install process now so things are a little clearer
+later on. At this point, we can install the new world and kernel onto the
+client box from builder. The process is very simple.
+
+#+BEGIN_EXAMPLE
+mount /usr/src && mount /usr/obj
+cd /usr/src
+make installkernel installworld
+mergemaster
+cd
+umount /usr/src /usr/obj
+shutdown -r now "Applying system upgrade."
+#+END_EXAMPLE
+
+*Note:* Add =KERNCONF=YOUR_KERNEL= to =/etc/make.conf= if you are using a custom
+kernel.
+
+It seems pretty straight forward but there are two caveats: 1) installkernel
+doesn't work if =kern.securelevel > 0= and 2) mergemaster is an interactive
+tool. We can get around 1) by setting =kern_securelevel_enable="NO"= in =/etc/
+rc.conf= and rebooting 2) is a bit more interesting.
+
+*** mergemaster Issues
+
+The problem with mergemaster is that it runs a comparison of your system
+configuration files and replaces those things that have changed while allowing
+you to merge the changes with your existing files. "How is this a problem?"
+you might ask. It's a problem because you're not there to do the merge. You
+can put mergemaster in automatic mode with the -a flag which "will leave all
+the files that differ from the installed versions in the temporary directory
+to be dealt with by hand." That's all well and good for any new files that are
+added but doesn't help when part of the upgrade involves a bug fix to one of
+the system rc files, for example.
+
+So, what do we do about it? Well, if you are staying within a single security
+branch, then you can probably get away with ignoring the changes that
+mergemaster finds. If you are upgrading to a newer release, 4.8 to 4.9, for
+example, or there is a security or bug fix in /etc then you should run
+mergemaster in interactive mode on each server. Note: There may be a way of
+dealing with those types of changes automatically but use caution. If you're
+not sure, then do it by hand.
+
+*** upgrade.sh
+
+To make upgrades easier, I wrote a little sh script that I call upgrade.sh.
+When run without arguments, it disables kern.securelevel in /etc/rc.conf, puts
+a short script in /usr/local/etc/rc.d and reboots the server. The rc script,
+called 000.upgrade.sh by default, will call upgrade.sh with one argument:
+install.
+
+When called with the install argument, upgrade.sh will:
+
+- mount /usr/src and /usr/obj
+- install the new world and kernel
+- run mergemaster -a
+- unmount /usr/src and /usr/obj
+- re-enable kern.securelevel
+- remove 000.upgrade.sh
+- and, reboot the server.
+
+At the end, your server should be running the new version of FreeBSD, complete
+with your custom kernel.
+
+*** The autoroot User
+
+Now we're going to add a user, autoroot, and give it the permissions it needs
+to run upgrade.sh.
+
+** Adding autoroot
+
+We need to be careful with autoroot because we are going to be giving it a bit
+of power that can be dangerous in the wrong person's hands. The first step to
+take to secure autoroot is to disable password logins. (This is done with the
+-w no option.) This will prevent anyone from logging in as autoroot without
+the DSA key.
+
+#+BEGIN_SRC sh
+pw user add autoroot -m -c "Auto root" -w no
+#+END_SRC
+
+** sudo
+
+We'll be using sudo to give autoroot the permissions it needs. (If don't have
+sudo installed already, you can install it from security/sudo in the ports
+collection.) The second step is to add autoroot to =/usr/local/etc/sudoers=.
+
+#+BEGIN_EXAMPLE
+# Begin AUTOROOT setup
+User_Alias AUTOROOT_USERS = autoroot
+Cmnd_Alias AUTOROOT_CMDS = /home/autoroot/bin/
+Defaults:AUTOROOT_USERS !lecture
+AUTOROOT_USERS ALL = NOPASSWD: AUTOROOT_CMDS
+# End AUTOROOT setup
+#+END_EXAMPLE
+
+We're going to all autoroot to run any command in =/home/autoroot/bin/= as root.
+This will give us some flexability with the commands autoroot can run without
+having to edit sudoers. You can allow autoroot to run other commands by
+creating symlinks in =/home/autoroot/bin/=.
+
+I want to draw your attention to the =NOPASSWD= option. This is required because
+it's going to be hard for autoroot to enter a password each time sudo asks for
+it. Besides, autoroot doesn't have a password. :-) This is one of the reasons
+you want to be careful with autoroot because, if someone does log in as
+autoroot, they do not have to enter a password to run your scripts.
+
+** .ssh/authorized_keys
+
+Finally, add your DSA key to =~autoroot/.ssh/authorized_keys= so that you can
+log in with your private key.
+
+#+BEGIN_SRC sh
+cat id_dsa.pub >> /home/autoroot/.ssh/authorized_keys
+#+END_SRC
+
+** bin/upgrade.sh
+
+Upload the update.sh script into =~autoroot/bin/=. I'll show you an easy way to
+do this later.
+
+#+BEGIN_SRC sh
+#!/bin/sh
+
+BUILDER=192.168.1.1
+RC_CONF=/etc/rc.conf
+RC_D=/usr/local/etc/rc.d
+RC_SCRIPT=000.upgrade.sh
+
+case "$1" in
+install)
+mount /usr/src || mount $BUILDER:/usr/src /usr/src
+mount /usr/obj || mount $BUILDER:/usr/obj /usr/obj
+
+cd /usr/src
+echo "make installkernel installworld"
+echo "mergemaster -a"
+
+cd
+umount /usr/src
+umount /usr/obj
+
+sed 's/^kern_securelevel_enable="[Nn][Oo]"/kern_securelevel_enable="YES"/'
+$RC_CONF > $RC_CONF.new
+mv $RC_CONF.new $RC_CONF
+
+rm $RC_D/$RC_SCRIPT
+shutdown -r now "Booting to new kernel."
+;;
+*)
+sed 's/^kern_securelevel_enable="[Yy][Ee][Ss]"/kern_securelevel_enable="NO"/'
+$RC_CONF > $RC_CONF.new
+mv $RC_CONF.new $RC_CONF
+
+echo '#!/bin/sh' > $RC_D/$RC_SCRIPT
+echo 'echo " Upgrading"' >> $RC_D/$RC_SCRIPT
+echo 'case "$1" in' >> $RC_D/$RC_SCRIPT
+echo 'start)' >> $RC_D/$RC_SCRIPT
+echo " $0 install" >> $RC_D/$RC_SCRIPT
+echo " ;;" >> $RC_D/$RC_SCRIPT
+echo '*) ;;' >> $RC_D/$RC_SCRIPT
+echo "esac" >> $RC_D/$RC_SCRIPT
+chmod +x $RC_D/$RC_SCRIPT
+
+shutdown -r now "Preparing for upgrade."
+;;
+esac
+#+END_SRC
+
+* Control Box
+
+Now that we're done with the servers, it's time to setup the control box. This
+is the box that you will be issuing the autoroot commands from. It can be any
+box that has ssh access to your servers. The builder server might be a good
+choice. It should not be a production server because you'll be opening quite a
+few ssh processes and it can bog down the box.
+
+** dcmd
+
+I use dcmd to issue the autoroot commands on each client. You can get dcmd
+from SourceForge.
+
+** dcmd.hosts
+
+This file contains the list of hosts to run the commands on and the user to
+them as. Each entry is formatted as =username@host=. We'll use the autoroot user
+that we setup earlier.
+
+#+BEGIN_EXAMPLE
+autoroot@server1
+autoroot@server2
+...
+#+END_EXAMPLE
+
+** Uploading upgrade.sh
+
+Now that dcmd is installed, let me show you an easy way to upload upgrade.sh.
+We can use dscp to upload the script to every server listed in dcmd.hosts. The
+=[]= will be replaced with the entries in dcmd.hosts.
+
+#+BEGIN_EXAMPLE
+dscp upgrade.sh []:bin/
+#+END_EXAMPLE
+
+** Performing the Upgrades
+
+From the control box, you can issue the upgrade command like so.
+
+#+BEGIN_EXAMPLE
+dssh sudo bin/upgrade.sh
+#+END_EXAMPLE
+

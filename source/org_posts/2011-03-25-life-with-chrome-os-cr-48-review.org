@@ -1,0 +1,129 @@
+#+TITLE: Life With Chrome OS: Cr-48 Review
+#+AUTHOR: PerlStalker
+#+DATE: [2011-03-25 Fri 15:58]
+#+begin_html
+---
+layout: post
+title: "Life With Chrome OS: Cr-48 Review"
+date: 2011-03-25 15:58
+comments: true
+categories: [google, chrome-os]
+---
+#+end_html
+/Originally posted at [2011-03-25 Fri 15:58]/
+
+The good thing about being stuck in an airport waiting for a plane
+that's been delayed for an hour is that I finally get around to
+writing a post on actually using Chrome OS. If you'll recall, [[http://perlstalker.vuser.org/blog/2010/12/21/unboxing-chrome-os-notebook/][Google
+shipped me a Cr-48 Chrome OS notebook to play with]]. After some initial
+problems with the hardware of the first one, Google sent me a
+replacement. I've been using it as my main machine at home since.
+
+The Cr-48 is nowhere near as powerful as my laptop from work but the
+ridiculously fast boot up and wake up mean that I can grab the notebook
+off the shelf and be enjoying Internet goodness in no time. It's especially
+nice when I go home for lunch because I can actually use it when I have a
+10-15 minutes before I have to head back. It's not worth the time to pull out
+my laptop in that situation.
+
+If you didn't know already, Chrome OS runs a modified version of Linux with X
+whose sole purpose in life is to start the Chrome web browser. I use Chrome as
+my main browser at work, so the syncing is nice. That slows the login time
+down a little bit as Chrome takes the time to check for updates for all of the
+apps you have installed as well.
+
+I switched the Cr-48 into developer mode to poke around a little bit. The nice
+thing about that is that you get a real shell to play in instead of crosh.
+Even more fun, that means that I can throw a =-XY= on my ssh commands and X
+forwarding works. That's an added plus.
+
+During my poking around, I was delighted to discover that Chrome OS encrypts
+your home directory by default. Admittedly, there's little stored on the
+machine since everything is "in the cloud", but that extra layer of protection
+is nice.
+
+I was wondering if the restriction a browser only system implies would be
+restrictive. In my case, it's not. It turns out that while I'm home, nearly
+everything I want to do, I do on the web. Thanks to cool apps like TweetDeck
+for Chrome, Grooveshark and Aviary, I have little need for local apps.
+
+All that said, there are drawbacks. If you don't have an Internet link, you're
+dead in the water. Second, the lack of a file manager to move downloaded files
+to an sdcard or USB drive and back is annoying. It looks like they're working
+on that but it kinda sucks at this point.
+
+A week passes.... I started this post sitting in an airport in Denver and I'm
+going to finish it in an airport in Las Vegas.
+
+I used my Cr-48 almost exclusively while at MMS. I say almost because the
+Excalibur hotel didn't have wifi. There was an ethernet connection but the
+Cr-48 doesn't have an RJ-45 port. Fortunately, I brought my work laptop, too,
+and I just left that one setup in my room.
+
+Remember what I said a few paragraphs ago about being dead without an Internet
+link? Well, I got to see exactly what that means because, in their infinite
+wisdom, Microsoft choose not to setup wifi in the breakout rooms and
+explicitly turned it off during keynote addresses. There went Plan A of typing
+my notes directly into Google Docs and tweeting the whole smash via TweetDeck
+for Chrome. Fortunately, there was a Plan B.
+
+Chrome OS comes with an app called Scratchpad (also available from the Chrome
+Web Store) which can be setup to sync with Google Docs. I had set that up
+previously, so I was all set. It turns out, even when I did have wifi during a
+breakout session (thanks to proximity to a wifi lounge) I just used the
+Scratchpad. It's really fast and does everything I needed for note taking. The
+only drawback is that it sometimes makes multiple copies in the document list.
+What made it really nice is that I could pop it up over my TweetDeck tab and
+watch what was going on in the #mms2011 and #mmsfun hash tags and comment on
+the session I was in. ([[http://twitter.com/#!/rodtrent/status/51006475870547968][I even won second place]] in MMS Twitter Army contest put
+on my MyITForum. I just missed winning an XBox 360.) When I got back to my
+room or during a break in one of the wifi lounges, I logged into Google Docs
+and moved my notes out of the Scratchpad label and into an mms2011 label that
+I shared with my coworkers.
+
+A side note here. I have barnacle installed on my phone to provide wifi
+tethering. That works great on my laptop but it doesn't work at all on Chrome
+OS. Apparently, Google built in a security feature that prevents Chrome OS
+from associating with ad hoc networks like the one barnacle creates. The
+traditional cry of "It's not a bug. It's a feature!" applies here. I
+understand it but I would really love to be able to say, "Yes, I know that
+it's an ad hoc network. Connect to it anyway." Something like the invalid SSL
+certificate warning would be fine.
+
+A couple of more complaints. First of all, the touch pad sucks. Moving the
+pointer and simple left clicks are okay but click and dragging more than a few
+characters is a difficult task only made possible through years of using emacs.
+Since there are no physical buttons, click and drag is triggered by double
+tapping and holding the second tap. Then you can drag whatever you clicked on
+around. Unfortunately, if you do that too close to an edge, you don't get vary
+far. The good news is that you touch the pad with another finger on the far
+side of the pad and continue to drag. It's kind of like when a kid pretends
+their fingers are the legs and "walks" them around. Just be sure you don't
+lift up that first finger before you start dragging with the second finger.
+Middle and right click are taken care of by holding ctrl or alt, respectively,
+while clicking.
+
+The next complaint is more my fault than Google's. When they designed the
+Cr-48, Google replaced the caps lock key with a "Search" key. When hit, it
+opens a new tab and puts the cursor in the omnibar so you can search or jump
+to a page. Unfortunately, I tend to fat-finger the 'a' key and hit that key.
+On my other machines, it's not too bad because I just start shouting at
+things. On the Cr-48, I get torn away from what I'm doing and am left looking
+at the home page. Unfortunately, if I'm in Scratchpad, ctrl-w closes the note,
+which remains open in front, instead of the newly opened tab.
+
+The battery life is amazing on this thing. I consistently got between 6-8
+hours. It was less if I kept trying to connect to the phantom wifi signals I
+would sometimes see is hope of actually get a wifi connection. Tweeting with
+TweetDeck on my Droid 2 is fine but it's not the same as using TweetDeck for
+Chrome. I started every morning with a fresh charge and was usually down
+around 60 percent around lunchtime. I'd usually spend a half hour in the
+alumni lounge around then and charge up to a bit over 70 percent before
+heading out for the rest of the day. I would never be able to do that with my
+laptop.
+
+All in all, I'm very happy with my Cr-48. On a scale of one to ten, I give it
+a six. Don't let that fool you, though. Even though it has its annoyances, I
+love my Cr-48. If they fix the software things, it'll be an easy eight. I
+can't wait to see what Google does with the official release.
+

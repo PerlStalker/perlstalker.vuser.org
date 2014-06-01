@@ -1,0 +1,101 @@
+#+TITLE: Courier and SPF
+#+AUTHOR: PerlStalker
+#+DATE: [2005-02-23 Wed 15:01]
+#+begin_html
+---
+layout: post
+title: Courier and SPF
+date: 2005-02-23 15:01
+comments: true
+categories: [courier, SPF]
+---
+#+end_html
+/Originally posted at [2005-02-23 Wed 15:01]/
+
+SPF is a protocol to try to provide some defense against domain spoofing. You
+can turn on SPF checks in courier-mta by adding various things to =bofh=.
+
+You might want to begin by reading the SPF RFC and the Courier SPF docs.
+
+* Possible Keywords (descriptions from the RFC):
+
+|------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| "none"     | A result of None means that no records were published by the domain. The checking software cannot ascertain if the client host is authorized or not.                                                                                                                                                                                                                                                    |
+| "neutral"  | A Neutral result MUST be treated exactly like a None result.                                                                                                                                                                                                                                                                                                                                            |
+| "pass"     | A Pass result means that the client is authorized to inject mail with the given "Mail From" identity. Further policy checks, such as reputation, or black and/or white listing, can now proceed with confidence based on the "Mail From" identity.  A Fail result is an explicit statement that the client is not                                                                                       |
+| "fail"     | authorized to use the domain in the "Mail From" identity. The checking software can choose to mark the mail based on this, or to reject the mail outright.                                                                                                                                                                                                                                              |
+| "softfail" | A SoftFail result should be treated as somewhere between a Fail and a Neutral. This value is used by domains as an intermediate state during roll-out of publishing records. The domain believes the host isn't authorized but isn't willing to make that strong of a statement. Receiving software SHOULD NOT reject the message based on this result, but MAY subject the message to closer scrutiny. |
+| "error"    | indicates an error during lookup; an MTA SHOULD reject the message using a transient failure code, such as 450.                                                                                                                                                                                                                                                                                         |
+| "unknown"  | indicates incomplete processing: an MTA MUST proceed as if a domain did not publish SPF data.                                                                                                                                                                                                                                                                                                           |
+
+* Courier Specific keywords:
+
+|--------------+-----------------------------------------------------------------------------------------------------------|
+| "off"        | SPF verification disabled (default);                                                                      |
+| "all"        | Turn all checks in _informational_ mode (no mail is rejected)  Status is put into 'Received-SPF:' header. |
+| "mailfromok" | Skip 'From:' check if MAILFROM passes. BOFHSPFFROM only.                                                  |
+
+Courier will only accept for specified keywords and will reject all
+others.  Always include =pass,none= for checks.
+
+* The SPF Checks
+
+** Verify 'HELO' domain.
+
+*Recommended:* =pass,none,softfail,neutral,unknown=
+
+#+BEGIN_EXAMPLE
+opt BOFHSPFHELO=pass,none,softfail,neutral,unknown,error
+#opt BOFHSPFHELO=all
+#+END_EXAMPLE
+
+** Verify return address from 'MAIL FROM' command
+
+#+BEGIN_EXAMPLE
+#opt BOFHSPFMAILFROM=pass,none,softfail,neutral,unknown
+opt BOFHSPFMAILFROM=all
+#+END_EXAMPLE
+
+** Verify 'From:' header
+
+One should not reject on BOFHSPFFROM failure. From the courier site:
+
+#+BEGIN_QUOTE
+A conservative policy should not reject failed SPF checks from the
+From: header, because it can be counterproductive in some
+situations. This is because when a sender from a domain with a
+published SPF policy sends a message to a mailing list, the message
+goes through the mailing list processor's IP address, and it will fail
+the SPF check unless the domain SPF explicitly authorizes the mailing
+list processor's IP address.
+#+END_QUOTE
+
+#+BEGIN_EXAMPLE
+#opt BOFHSPFFROM=pass,none,softfail,neutral,unknown,mailfromok
+opt BOFHSPFFROM=all
+#opt BOFHSPFFROM=off
+#+END_EXAMPLE
+
+** Other Options
+
+Which keywords (results) cause a permanent error (rather than a temp error)
+
+*Recommended:* fail,softfail (default)
+
+#+BEGIN_EXAMPLE
+opt BOFHSPFHARDERROR=fail,softfail
+#+END_EXAMPLE
+
+Turn off SPF checks for hosts w/ RELAYCLIENT set
+
+#+BEGIN_EXAMPLE
+opt BOFHSPFTRUSTME=1
+#+END_EXAMPLE
+
+Disables custom reject messages (provided by the DNS for the domain) *Note:*
+Turning this off has some security implications.
+
+#+BEGIN_EXAMPLE
+opt BOFHSPFNOVERBOSE=1
+#+END_EXAMPLE
+

@@ -1,0 +1,107 @@
+#+TITLE: JSON Serialization with Dancer and MooseX::Storage
+#+AUTHOR: PerlStalker
+#+DATE: [2011-04-27 Wed 16:07]
+#+begin_html
+---
+layout: post
+title: "JSON Serialization with Dancer and MooseX::Storage"
+date: 2011-04-27 16:07
+comments: true
+categories: [dancer, json, perl, "MooseX::Storage"]
+---
+#+end_html
+/Originally posted at [2011-04-27 Wed 16:07]/
+
+I'm hacking on a new tool in perl to manage my KVM cluster. Part of it is a
+RESTful interface using JSON. The objects I'm using are written using Moose
+and MooseX::Storable to simplify serialization. I can convert objects back and
+forth between perl objects and JSON all day. Unfortunately, there's a fly in
+the ointment.
+
+I'm using Dancer to provide the framework for the RESTful interface. The nice
+thing about Dancer is that it can automatically serialize perl data structures
+and it can do it via JSON. That's all shiny except Dancer's serializer doesn't
+know about MooseX::Storable. In fact, Dancer chokes when I try to send an
+object back from one of the handlers.
+
+All is not lost. There is a work around that appears to work in my tests.
+First of all, I needed to tell Dancer that it's okay to try and convert my
+objects. This is done in =config.yml=.
+
+#+BEGIN_EXAMPLE
+engines:
+  JSON:
+    convert_blessed: '1'
+#+END_EXAMPLE
+
+That tells Dancer, via the JSON package, to try to convert objects using the
+method TO_JSON. But, wait! I don't have one of those. Yet. Fortunately,
+MooseX::Storable has everything I need.
+
+The MooseX::Storable API offers a couple of options. The first is to use
+freeze() to turn the object into a JSON string. That works if I'm only
+returning a single object but I'm often returning lists of things which
+complicates things.
+
+#+BEGIN_SRC perl
+sub TO_JSON { $_[0]->freeze }
+#+END_SRC
+
+Actually, it seems to work but Dancer has goes through the returned JSON
+string and encodes before sending it on. That's actually a second round of
+encoding since MooseX::Storable did it once already. Here's what a list
+containing an object looks like.
+
+#+BEGIN_EXAMPLE
+[
+   "{\"__CLASS__\":\"YAVMM::Host-0.01\",\"cluster\":\"dev\",\"name\":\
+"rbsmith-desktop\",\"ram\":3924056,\"num_cpus\":4}"
+]
+#+END_EXAMPLE
+
+Ugly, huh? In fact, that might screw up anything non-perl that tries to use
+the RESTful interface. We can get around that by going down one level and
+using =pack()= instead.
+
+=pack()= and the corresponding =unpack()= are required by anything implementing
+the MooseX::Storage API. Rather than going all the way to JSON, =pack()= spits
+back a serialized perl hashref. It turns out that that is exactly what Dancer
+needs to properly encode the object. So, I changed =TO_JSON= to look like this:
+
+#+BEGIN_SRC perl
+sub TO_JSON { $_[0]->pack }
+#+END_SRC
+
+The new output is below. Isn't it pretty? That's exactly what the JSON should
+look like.
+
+#+BEGIN_EXAMPLE
+[
+   {
+      "__CLASS__" : "YAVMM::Host-0.01",
+      "cluster" : "dev",
+      "name" : "rbsmith-desktop",
+      "ram" : 3924056,
+      "num_cpus" : 4
+   }
+]
+#+END_EXAMPLE
+
+On the client side, I still need to decode that mess. That's actually very
+easy using the JSON module and feeding the JSON text into =decode_json()=. That
+spits back a perl hash or list reference that has the (mostly) deserialized
+data. I say mostly because my objects are still hashes and not objects. All
+that I need to do is feed those hashrefs to =unpack()= and I get my object back.
+
+Here's how I would translate that list above. *Note:* My object is called
+YAVMM::Host. You would, of course, use your own class name instead. Also,
+assume that =$json_text= has the JSON text. How it got there is beyond the scope
+of this document.
+
+#+BEGIN_SRC perl
+my @hosts = map { YAVMM::Host->unpack($_) } @{ decode_json($json_text) };
+#+END_SRC
+
+Now =@hosts= is a list with a bunch of YAVMM::Host objects that I can have all
+sorts of fun with.
+

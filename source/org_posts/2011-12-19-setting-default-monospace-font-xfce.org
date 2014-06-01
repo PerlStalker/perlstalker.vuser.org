@@ -1,0 +1,35 @@
+#+TITLE: Setting the Default Monospace font in XFCE
+#+AUTHOR: PerlStalker
+#+DATE: [2011-12-19 Mon 09:38]
+#+begin_html
+---
+layout: post
+title: Setting the Default Monospace font in XFCE
+date: 2011-12-19 09:38
+comments: true
+categories: [fonts, xfce]
+---
+#+end_html
+/Originally posted at [2011-12-19 Mon 09:38]/
+
+I use XFCE4 on my box at work because it's lightweight and still
+provides the features I want. I wanted to change the default font so
+that emacs used the font I wanted without having to change my .emacs
+file. Unfortunately, XFCE4 only lets you set system default but not
+the monospace font. Fortunately, XFCE4 uses fontconfig. All you need
+to do is edit =$HOME/.fonts.conf= and add this little XML
+snippet. (See [[http://www.freedesktop.org/software/fontconfig/fontconfig-user.html][the fonts.conf manpage]].)
+
+#+BEGIN_EXAMPLE
+        <match target="pattern">
+                <test qual="any" name="family">
+                        <string>monospace</string>
+                </test>
+                <edit name="family" mode="assign">
+                        <string>Terminus-9</string>
+                </edit>
+        </match>
+#+END_EXAMPLE
+
+If you have to create =$HOME/.fonts.conf=, make sure you wrap that snippet in
+=<fontconfig>= tags.

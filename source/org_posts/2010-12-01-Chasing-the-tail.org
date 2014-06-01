@@ -1,0 +1,40 @@
+#+TITLE: Chasing the "tail"
+#+AUTHOR: PerlStalker
+#+DATE: [2010-12-01 Wed 09:51]
+#+begin_html
+---
+layout: post
+title: Chasing the "tail"
+date: 2010-12-01 09:51
+comments: true
+categories: [powershell]
+---
+#+end_html
+
+/Originally posted at [2010-12-01 Wed 09:51]/
+
+While trying to get System Center Configuration Manager to install a package
+on a new server, I rediscovered why I hate working in Windows and why I like
+PowerShell. I wanted to check the end of a series of log files to see what was
+going on. Unfortunately, Windows has no obvious analog to the unix tail
+command. Fortunately, my friend [[http://jon.netdork.net/][Jon Angliss]] had [[https://twitter.com/#!/j_angliss/status/9775766279553024][most of a solution]].
+
+: Get-Content <filename> -wait
+
+That's close to what I want but not quite. What that does is almost the same
+as =tail -f <filename>= except it prints the entire file first. What I wanted
+was to print the last ten lines of the file. It turns out, there's a way to do
+it but it's a little weird.
+
+: (Get-Content <filename>)[-10..-1]
+
+=Get-Content= can return an array by wrapping it in parentheses and you can work
+with is using perl-ish array slices. Sticking =[-10..-1]= on the end says that
+you want lines -10 to -1, i.e. the last ten lines. *Note:* Don't use zero as the
+last index or it will slap the /first/ line of the file at the end of the
+output.
+
+So, there it is. A convoluted way of doing something that should be
+easy. See =Get-Help Get-Content= for the documentations and =Get-Help
+Get-Content -examples= for examples.
+

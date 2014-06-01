@@ -1,0 +1,79 @@
+#+TITLE: Fun with Mutt, Irssi and Screen
+#+AUTHOR: PerlStalker
+#+DATE: [2010-09-30 Thu 16:35]
+#+begin_html
+---
+layout: post
+title: Fun with Mutt, Irssi and Screen
+date: 2010-09-30 16:35
+comments: true
+categories: [irssi, mutt, screen]
+---
+#+end_html
+/Originally posted at [2010-09-30 Thu 16:35]/
+
+One of my problems at work is that I always want my mail and chat windows
+visible while I'm working. Sure, I could set up multiple windows and hope they
+stay where I put them. But it's a pain to set those windows up every time.
+Since I'm using mutt for email and irssi for chat and instant messaging with
+bitlbee, I thought, why not use screen to organize the windows and, as a
+special bonus, I can pull up my session from anywhere over ssh. Below is a
+screen shot of what things look like.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/comm-screenshot.png %}
+#+END_HTML
+
+The first thing I did was create a special =.screenrc-msg= file to set things up
+for me.
+
+#+BEGIN_EXAMPLE
+source /etc/screenrc
+
+sessionname comm
+
+## Split the window first
+split
+
+## Start email
+screen -t email 0 start-mail
+
+## Move to the new window
+focus down
+
+## start up irssi
+screen -t irssi 1 irssi
+
+## Move back to email window for password entry
+focus up
+
+bind ^y screen -t email 0 start-mail
+bind ^u screen -t irssi 1 irssi
+#+END_EXAMPLE
+
+The source line at the top simply brings in the system defaults. Then I name
+the session. That will make sure I always reconnect to an existing session if
+one already exists.
+
+Now comes the fun stuff. First, I split the screen into two windows and start
+mutt in the top one. I use offlineimap with mutt for my work mail so I've
+wrapped the two into a single script. If you're just using mutt, you can
+replace start-mail with the appropriate command line for mutt. Next, I move
+down to the bottom window and fire up irssi then jump back up to the top
+window so I can enter the passwords for my gmail accounts.
+
+The two bind lines give me shortcuts to restart either mutt or irssi if I need
+to. Screen shortcuts start with =C-a= so the full command to restart mutt, for
+example, is =C-a C-y=.
+
+Now all that's left to do is start screen with the command file and some magic
+options for reconnecting to the session, if it exists.
+
+: screen -c $HOME/.screenrc-msg -aA -D -R
+
+I can never remember that so I wrapped it in a little shell script. Now, when
+I log in, I just fire up a terminal, maximize it vertically and run my script.
+One click to make sure the terminal is visible on all workspaces and I'm good
+to go. If I log into my box from home or my cell phone, I can run that script
+and I've got everything at my fingertips.
+

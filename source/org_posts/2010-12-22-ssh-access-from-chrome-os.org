@@ -1,0 +1,35 @@
+#+TITLE: SSH Access from Chrome OS
+#+AUTHOR: PerlStalker
+#+DATE: [2010-12-22 Wed 15:51]
+#+begin_html
+---
+layout: post
+title: SSH Access from Chrome OS
+date: 2010-12-22 15:51
+comments: true
+categories: [chrome-os, ssh]
+---
+#+end_html
+
+/Originally posted at [2010-12-22 Wed 15:51]/
+
+I've been playing with this Chrome OS notebook today since it's seeming
+surprisingly stable give the problems I had with it last night. I'm beginning
+to wonder if the battery charge indicator was lying to me. Anyway, besides
+Chrome, the app I most use on my laptop is ssh. I use it to get into my server
+at home and to log into work if there are problems that I can fix from home.
+It's a tool that I can't really live without. Fortunately, I don't have to.
+
+First, I started playing with [[http://code.google.com/p/shellinabox/][Shell In A Box]]. It's a daemon that runs on a
+server which provides an AJAX-based terminal emulator. I can access the daemon
+over SSL and get a shell inside a Chrome tab. You can also configure it to ssh
+into a remote box which would let me get into my machine at work.
+
+I was impressed by Shell In A Box's terminal emulation. It was even able to
+deal with the [[http://perlstalker.vuser.org/blog/2010/09/30/fun-with-mutt-irssi-and-screen/][screen+mutt+irssi]] combo I run at work.
+
+Shell in a Box was a reasonable workaround but it wasn't quite what I was
+looking for. I really wanted to be able to ssh into anything. Fortunately,
+there is a solution. Hitting =ctrl+alt+t= brings up a terminal window with the
+crosh shell. Crosh is extremely limited but it does have an ssh command which
+does exactly what I want.

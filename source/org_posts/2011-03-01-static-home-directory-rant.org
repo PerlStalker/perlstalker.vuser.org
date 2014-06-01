@@ -1,0 +1,102 @@
+#+TITLE: Static Home Directory Rant
+#+AUTHOR: PerlStalker
+#+DATE: [2011-03-01 Tue 15:00]
+#+begin_html
+---
+layout: post
+title: Static Home Directory Rant
+date: 2011-03-01 15:00
+comments: true
+categories: [courier, maildir]
+---
+#+end_html
+Ok, I have to get this off my chest because, 1) it drives me fracking bonkers
+everytime and see it and 2) I want a place I can point people at when they ask
+why this is a bad idea. What I'm talking about is the excessive number of
+HOWTOs that think it's a good idea to use the same home directory for all
+virtual users. Most of these HOWTOs discuss using postfix with courier, but I
+have seen courier-mta HOWTOs that do this too.
+
+Let me give a little background first. The courier mail server
+supports the concept of virtual users. These are users that do not
+have system accounts.  They only have accounts that exist for
+courier. (*Note:* Other mail servers support virtual users so, when I
+say courier, keep in mind that his applies to other servers as well.)
+When you setup a virtual user for courier, you create an entry in some
+sort of database, like userdb, MySQL or LDAP, that has the username
+(or email address), password, home directory, maildir, user and group
+IDs for directory ownership, etc., and a few other things that are not
+relevent to this discussion. The systems are configured through
+various auth*rc files, e.g. authmysqlrc is the config file for
+MySQL. In the case of MySQL and PostgreSQL, you specify column names
+(or SQL snippets) that will tell courier where everything is. (I talk
+about this a little in [[http://perlstalker.vuser.org/blog/2005/02/22/how-to-allow-users-to-login/][How to Allow Users to Login With user%domain]].)
+
+Let me give you an example from a MySQL setup to show you what I'm complaining
+about. *Note:* In the example I used a static value instead of a column name for
+the home directory. You get the same effect if you just set everyone's
+homedirs to be the same.
+
+#+BEGIN_EXAMPLE
+MYSQL_HOME_FIELD "/home/vmail"
+MYSQL_MAILDIR_FIELD concat(domain, '/', email, '/')
+#+END_EXAMPLE
+
+Every user on a system configured like this will have the same home directory,
+=/home/vmail=, and a maildir that's looks like =example.com/johndoe= inside that
+directory. At this point, those of you that haven't wandered off are asking,
+"But PerlStalker, what's wrong with that? It seems to make sense. The user's
+mail is kept separate and it all works." The problem is that courier (and a
+few other tools) use the user's home directory to store user-specific
+settings. For example, maildrop (a common mail delivery agent (MDA) used with
+courier) looks for user-specific filters in =$HOME/.mailfilter= (where =$HOME= is
+the user's home directory). courier-mta will look for =$HOME/.courier*= files to
+see if there are user-specific delivery instructions. (postfix calls these
+files =.forward= while qmail uses =.qmail=, but the idea is the same.) But that's
+not all, some tools such as SpamAssassin can be configured to keep a user's
+settings in =$HOME/.spamassassin= or similar files. This gets to be a problem
+when you have more than one user trying to use the same =$HOME=.
+
+User configs are not the only problem. You may want to configure your system
+so that each domain is owned by a different uid/gid pair to allow, for
+example, a domain admin to make changes to their domain but no others or to
+tie the domain's mail store into a global quota for that user. The catch is
+that courier will try to suid to the uid/gid pair and change to the user's
+=$HOME=. You get a couple of things happening now: 1) courier may not be able to
+cd to =$HOME= because it's owned by someone else and 2) courier will complain
+that =$HOME= is owned by someone else.
+
+What should be becoming apparent here is that what is lost when every user has
+the same home directory is the flexability to do user-specific things. As an
+admin, you might not need any of that flexability right now, but you might at
+some point in the future. If you take the small step of forking out the users'
+homes into separate directories in the beginning, it can save you a lot of
+pain and suffering later. So, here is my recommendation. I suggest that you
+use a different home dir for each user and use the default maildir. For
+example, a user might have a home directory of =/home/vmail/example.com/johndoe=
+with a maildir of =$HOME/Maildir=. (Some systems will change the default maildir
+to =.maildir=.)
+
+He's our authmysqlrc file again. Notice that I commented out
+=MYSQL_MAILDIR_FIELD=. That's because I'll be using the default which is set in
+imapd. You could, of course, uncomment here instead.
+
+#+BEGIN_EXAMPLE
+MYSQL_HOME_FIELD concat('/home/vmail/', domain, '/', email)
+#MYSQL_MAILDIR_FIELD "Maildir"
+#+END_EXAMPLE
+
+Some people recommend setting the maildir to =./= so that it is the same as the
+home directory. I don't like to for the simple reason that most of the
+confiuration files that get written in =$HOME= start with a leading dot, e.g.
+=.mailfilter= and =.spamassassin=. Courier uses directories with a leading dot to
+signify sub-folders so having files with leading dots could cause problems and
+/or confusion.
+
+Ok, so that's the end of my rant. Most of what I said can be applied to any
+mail server with virtual users. The idea is to plan ahead and give your self
+the flexibility to adapt to new things in the future.
+
+*Update 2011-03-01:* I recovered this post from the old site database but I
+don't have the original creation date. It was sometime back in 2007, I think.
+

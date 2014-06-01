@@ -1,0 +1,140 @@
+#+TITLE: IPv6 Tunnel Setup Script
+#+AUTHOR: PerlStalker
+#+DATE: [2010-10-23 Sat 20:57]
+#+begin_html
+---
+layout: post
+title: IPv6 Tunnel Setup Script
+date: 2010-10-23 20:57
+comments: true
+categories: [IPv6, linux, tunnel]
+---
+#+end_html
+/Originally posted at [2010-10-23 Sat 20:57]/
+
+I recently set up a IPv6 tunnel with Hurricane Electric's free [[http://www.tunnelbroker.net/][tunnel broker]].
+Once your tunnel is created, HE provides instructions for setting the tunnel
+up on your system. Easy peasy.
+
+I decided that I wanted to setup a tunnel on my laptop. That's a little
+tougher since my laptop will be getting a dynamic IP from the various wireless
+networks I connect to. Even more fun, since most wifi networks I connect to in
+hotels and airports, etc. give me a NAT'd address, I won't know the public IP
+of the network. Fortunately, there's an easy solution.
+
+* Background
+
+There are a couple of issues when setting up a tunnel. First of all, HE
+requires you set your public IP address in the tunnel config on their site.
+Second, you need to know the IP address you're assigned by the DHCP server of
+the wifi network you connect to. Both of these are easy to do by hand but
+that's not very convenient. So, I wrote a little shell script to do it all for
+me.
+
+In the sections below, I'm going to show you code snippets to do each piece
+then I'll post the full script at the end.
+
+* Set the Client IPv4 Address
+
+The first thing you need to do is set the Client IPv4 address. The good news
+is that HE provides [[https://ipv4.tunnelbroker.net/ipv4_end.php][a nice URL]] that you can use to set your IP automatically.
+That page also describes the parameters that you need to pass.
+
+A couple of things to note. First, as that page says, the =user_id= is not your
+user name. It's an MD5 looking string that is available on the main tunnel
+broker page. Second, make sure you remember the =-n= on the echo line to
+generate the MD5 sum of your password. If you forget it, the sum will be of
+your password plus a new line. Obviously, that's not the same thing. Third, HE
+is using a self-signed certificate. You need to add the =-k= flag to curl to
+skip the certificate validation. Finally, remember that the tunnel ID is the
+global tunnel ID found at the top of the details page.
+
+#+BEGIN_SRC sh
+UPDATE_PAGE="https://ipv4.tunnelbroker.net/ipv4_end.php"
+IPV4ADDR=AUTO
+USERID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+MD5PASS=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+TUNNEL_ID=2
+
+curl -k $UPDATE_PAGE?ipv4b=$IPV4ADDR\&pass=$MD5PASS\&user_id=$USERID\&tunnel_id=$TUNNEL_ID
+#+END_SRC
+
+* Set up the Link
+
+Be sure to have the tunnel configuration page open. You'll need some of the
+information there. The basic script looks something like the script below.
+Many distros, including Ubuntu, already have the ipv6 module loaded. If that's
+the case, you can leave out the modprobe line.
+
+#+BEGIN_SRC sh
+modprobe ipv6
+ip tunnel add he-ipv6 mode sit remote $REMOTE local $LOCAL ttl 255
+ip link set he-ipv6 up
+ip addr add $CLIENTIPV6 dev he-ipv6
+ip route add ::/0 dev he-ipv6
+ip -f inet6 addr
+#+END_SRC
+
+=$REMOTE= is the /Server IPv4 address/ from the configuration page and
+=$CLIENTIPV6= is the /Client IPv6 address/. =$LOCAL= is the IPv4 address of
+your interface.  We'll get to that next.
+
+The first thing you'll need is the name of your wireless interface. In my
+case, it's =wlan0=. Once you have that, you can get the address from ifconfig. 
+*Note:* If you have multiple addresses configured on your interface for some
+reason, this may not give you what you expect.
+
+#+BEGIN_SRC sh
+IFACE=wlan0
+
+LOCAL=`ifconfig $IFACE | grep 'inet addr' | awk '/inet addr/{ print $2; }' |
+awk -F : '{ print $2; }'`
+#+END_SRC
+
+* he-ipv6.sh
+
+And that's it. Now, it's time to wrap all that in a script to make it easy to
+bring up the tunnel and tear it down again. Be sure to fill in appropriate
+information from your tunnel page. You can start the tunnel by running
+he-ipv6.sh start and shut it down with he-ipv6.sh stop.
+
+#+BEGIN_SRC sh
+#!/bin/bash
+
+IFACE=wlan0
+
+UPDATE_PAGE="https://ipv4.tunnelbroker.net/ipv4_end.php"
+IPV4ADDR=AUTO
+USERID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+MD5PASS=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+TUNNEL_ID=2
+
+# Server IPv4 address
+REMOTE=a.a.a.a
+LOCAL=`ifconfig $IFACE | grep 'inet addr' | awk '/inet addr/{ print $2; }' |
+awk -F : '{ print $2; }'`
+
+# Server IPv6 address
+SERVERIPV6="2001:...::1/64"
+
+# Client IPv6 address
+CLIENTIPV6="2001:...::2/64"
+
+case $1 in
+    start)
+        curl -k $UPDATE_PAGE?ipv4b=$IPV4ADDR\&pass=$MD5PASS\&user_id=$USERID\&
+tunnel_id=$TUNNEL_ID
+        ip tunnel add he-ipv6 mode sit remote $REMOTE local $LOCAL ttl 255
+        ip link set he-ipv6 up
+        ip addr add $CLIENTIPV6 dev he-ipv6
+        ip route add ::/0 dev he-ipv6
+        ;;
+    stop)
+        ip route del ::/0 dev he-ipv6
+        ip addr del $CLIENTIPV6 dev he-ipv6
+        ip link set he-ipv6 down
+        ip tunnel del he-ipv6
+        ;;
+esac
+#+END_SRC
+

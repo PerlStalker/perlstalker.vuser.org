@@ -1,0 +1,80 @@
+#+TITLE: RT in Emacs
+#+AUTHOR: PerlStalker
+#+DATE: [2010-09-30 Thu 12:02]
+#+begin_html
+---
+layout: post
+title: RT in Emacs
+date: 2010-09-30 12:02
+comments: true
+categories: [RT, emacs]
+---
+#+end_html
+/Originally posted at [2010-09-30 Thu 12:02]/
+
+There are a number of ways of using [[http://www.bestpractical.com/rt/][RT]] from within emacs. A quick google
+search will find them. Here's what I use.
+
+* RT
+
+First, you'll need to snag a copy of the rt perl script from =/opt/rt3/bin/= or
+from the source package. This can go almost anywhere on your local system but
+I put it in =$HOME/bin/=. Make sure you make it executable.
+
+Next, create =$HOME/=.rtrc. This will contain the information rt needs to access
+your RT install.
+
+#+BEGIN_EXAMPLE
+server https://rt.example.com/
+user your-user-name
+passwd super-secret-password
+#+END_EXAMPLE
+
+Test it out by running rt list. You should get a list of all open tickets for
+your account. If you leave out the passwd line, rt will prompt you for your
+password.
+
+* emacs
+
+Now to setup emacs. I use a couple of cool features of emacs: term-mode and
+emacs server. Term mode will allow you to run the rt shell within emacs. You
+could run it from emacs' shell mode but it doesn't work as well. The server
+allows you to run the command =emacsclient= and edit a file in whichever emacs
+instance started the server. I made all of this simple on myself by putting it
+in a file for emacs to load when needed. I put it in =$HOME/.emacs.d/rt=
+
+#+BEGIN_SRC emacs-lisp
+;; rt mode
+(add-to-list 'auto-mode-alist '("rt\\.form" . text-mode))
+(add-hook 'text-mode-hook 'flyspell-mode)
+
+;; start rt
+(server-start)
+(term "/home/rbsmith/bin/rt")
+(term-pager-toggle)
+#+END_SRC
+
+The first part loads tickets in text-mode and turns on flyspell-mode i.e.,
+spell check on the fly. You can leave out (term-pager-toggle) if you like. It
+simply paginates the output from rt much like less does.
+
+Now create a little wrapper script for starting emacs and rt. I called it
+=$HOME/bin/rt-client=. Make sure you make it executable.
+
+#+BEGIN_SRC sh
+#!/bin/bash
+
+export EDITOR=emacsclient
+emacs -l $HOME/.emacs.d/rt
+#+END_SRC
+
+You can use the command =help= from the =rt>= prompt to get all sort of
+information on how to actually use the RT shell.
+
+* Editing Tickets
+
+When you run a command to edit a ticket, the ticket will load up in the emacs
+window. The message is in RFC 822 format. If you have a field that needs to
+span multiple lines (like text) every line, including blank lines, needs to
+start with a space. When you're done editing a ticket, type =C-x C-#= to close
+the editor and submit the changes.

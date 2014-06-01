@@ -1,0 +1,315 @@
+#+TITLE: gfs on Gentoo
+#+AUTHOR: PerlStalker
+#+DATE: [2006-03-24 Fri 10:40]
+#+begin_html
+---
+layout: post
+title: gfs on Gentoo
+date: 2006-03-24 10:40
+comments: true
+categories: [gfs, gentoo]
+---
+#+end_html
+/Originally posted at [2006-03-24 Fri 10:40]/
+
+* Installing
+
+Many of the needed packages are masked. Add the following to =/etc/portage/
+packages.keywords=
+
+#+BEGIN_EXAMPLE
+sys-fs/gfs ~x86
+sys-cluster/gfs-kernel ~x86
+sys-cluster/cman ~x86
+sys-cluster/cman-headers ~x86
+sys-cluster/cman-kernel ~x86
+sys-cluster/ccs ~x86
+sys-cluster/magma ~x86
+sys-cluster/magma-plugins ~x86
+sys-cluster/dlm ~x86
+sys-cluster/dlm-headers ~x86
+sys-cluster/dlm-kernel ~x86
+sys-cluster/iddev ~x86
+sys-cluster/gfs-headers ~x86
+sys-cluster/fence ~x86
+sys-fs/clvm ~x86
+sys-cluster/gnbd ~x86
+sys-cluster/gnbd-headers ~x86
+sys-cluster/gnbd-kernel ~x86
+#+END_EXAMPLE
+
+Now you can emerge the packages. All of these packages are needed for the
+client machines except for =sys-fs/clvm=.
+
+: emerge gfs cman-kernel gfs-kernel dlm-kernel clvm ntp magma-plugins gnbd gnbd-kernel
+
+*Note:* Remember to re-emerge the *-kernel packages when you upgrade your
+kernel.
+
+* Configuration
+
+* /etc/cluster/cluster.conf
+
+Edit =/etc/cluster/cluster.conf=.
+
+#+BEGIN_SRC xml
+<?xml version="1.0"?>
+<cluster name="mailfs" config_version="1">
+<cman two_node="1" expected_votes="1"/>
+
+<clusternodes>
+  <clusternode name="server1">
+   <fence>
+    <method name="single">
+     <device name="gnbd" nodename="server1"/>
+    </method>
+   </fence>
+  </clusternode>
+
+  <clusternode name="client1">
+   <fence>
+    <method name="single">
+     <device name="gnbd" nodename="server1"/>
+    </method>
+   </fence>
+  </clusternode>
+
+</clusternodes>
+
+<fencedevices>
+<fencedevice name="gnbd" agent="fence_gnbd"/>
+</fencedevices>
+
+</cluster>
+#+END_SRC
+
+*Note:* The name for each clusternode must be a resolvable hostname. Also note
+that the config above is for a two node cluster. If you have more than two
+nodes, you can remove the =cman= tag.
+
+** /etc/ntp.conf
+
+The defaults should work for most people. You may want to set the =server=
+option if you have your own ntp server.
+
+* Setup LVM
+
+The setup for LVM will vary greatly depending on your setup, storage needs and
+if you are using =md= to do software RAID. The basic steps are:
+
+ 1. Use =pvcreate= to mark each physical volume, i.e. partition, disk, etc.,
+    as an device suitable for use by LVM. If you are using =md=, you must
+    create those devices first and then use =pvcreate= to make them ready
+    for LVM.
+ 2. Use =vgcreate= to create the volume group, i.e. virtual device, for use
+    with each physical volume created above. You can add additional physical
+    volumes to the group later with =vgextend=.
+ 3. Use =lvcreate= to create the a logical volume within a volume group. The
+    logical volume can use some or all of the volume group for use as usable
+    devices. These logical volumes can be mounted and used as a regular block
+    device, i.e. it looks like a regular disk. The device will be named =/var
+    /vgname/lvname=. On the system I use for the email cluser at amigo.net, I
+    named the volume group =vg01= and the logical volume =mail= so the
+    device is named =/var/vg01/mail=.
+
+When you're done, add =clvmd= to your startup.
+
+: rc-update add clvmd start
+
+** Example Configuration Using md
+
+Here is an example of how you might setup a logical volume using =md=
+devices. This is not meant to be an all-inclusive explanation of how =md= or
+LVM work. It's simply presented as an example of how things can work.
+
+*** /etc/raidtab
+
+=/etc/raidtab= is where you configure your RAID setup. I setup my drives in
+a RAID10 (or 1+0, take your pick) configuration. This is not the only way to
+setup a RAID10. I've heard rummors of an option to set =raid-level= to 10
+and be able to do the whole config one block but I have not seen docs on it.
+You can also use LVM to do the striping instead of md. That gives you a bit
+more flexibility by letting you add pairs to the RAID easily but, from what
+I've see in places around the Web, the performance isn't as good.
+
+#+BEGIN_EXAMPLE
+# Mirrors
+raiddev                 /dev/md0
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdb1
+raid-disk               0
+device                  /dev/sdc1
+raid-disk               1
+
+raiddev                 /dev/md1
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdd1
+raid-disk               0
+device                  /dev/sde1
+raid-disk               1
+
+raiddev                 /dev/md2
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdf1
+raid-disk               0
+device                  /dev/sdg1
+raid-disk               1
+
+raiddev                 /dev/md3
+raid-level              1
+nr-raid-disks           2
+chunk-size              32
+persistent-superblock   1
+device                  /dev/sdh1
+raid-disk               0
+device                  /dev/sdi1
+raid-disk               1
+
+## Stripe (Main RAID-10)
+raiddev                 /dev/md4
+raid-level              0
+nr-raid-disks           4
+chunk-size              32
+persistent-superblock   1
+device                  /dev/md0
+raid-disk               0
+device                  /dev/md1
+raid-disk               1
+device                  /dev/md2
+raid-disk               2
+device                  /dev/md3
+raid-disk               3
+#+END_EXAMPLE
+
+If you have installed the =raidtools= package, you can use =mkraid= to fire
+up the RAID and let it get building. *Note:* The rebuild can take a while. You
+can check on the status by running =cat /proc/mdstat=.
+
+#+BEGIN_SRC sh
+mkraid /dev/md0 /dev/md1 /dev/md3
+mkraid /dev/md4
+#+END_SRC
+
+Once the RAID is done building, you can add it as a physical volume for LVM
+
+#+BEGIN_SRC sh
+pvcreate /dev/md4
+#+END_SRC
+
+and create the volume and logical groups.
+
+#+BEGIN_SRC sh
+vgcreate vg01 /dev/md4
+lvcreate -L 20G -n mail vg01
+#+END_SRC
+
+That will create a 20GB logical volume. You can create a logical volume that
+uses all of the space on the volume group but it takes an extra to get the
+number of physical entries on the volume.
+
+#+BEGIN_EXAMPLE
+$ vgdisplay vg01 | grep PE
+  PE Size               4.00 MB
+  Total PE              17393
+  Alloc PE / Size       0 / 0 GB
+  Free  PE / Size       17393 / 67.94 GB
+#+END_EXAMPLE
+
+Then use the first number on the =Free PE / Size= line when you run
+=lvcreate=.
+
+lvcreate -l 17393 -n mail vg01
+
+*Note:* That's a lower case =l= instead of a capital =L= to let =lvcreate=
+know that you are spcifying the size in PEs and not bytes.
+
+* Create the gfs
+
+#+BEGIN_SRC sh
+gfs_mkfs -p lock_dlm -t mailfs:maildirs -j 4 /dev/vg01/mail
+#+END_SRC
+
+*Note:* =mailfs= must match the cluster name from cluster.conf.
+
+* Enable Services on Boot
+
+#+BEGIN_SRC sh
+for serv in ntp-client ntpd ccsd cman fenced clvmd gfs gnbd-srv gnbd-client;
+do
+  rc-update add $serv default
+done
+#+END_SRC
+
+*Note:* Clients can omit the =gnbd-srv= service.
+
+* gnbd Configuration
+
+Both clients and servers use =/etc/gnbdtab=. The file uses four columns. The
+first is the type of record this is; either =import= or =export=. The
+second column, host, is only used by the =import= type. It specifies the
+servers to import gnbd mounts from. The last two columns are used by the
+=export= type. The first gives a name to the export. It must be unique
+across your systems because, when imported, it will show up as =/dev/gnbd/
+name= on the client machines. (You can do multipath with gnbd but I'm going
+to get into that at this time.) The forth, and final column, is the device (or
+file path) to export.
+
+** Server
+
+*** /etc/gnbdtab
+
+#+BEGIN_EXAMPLE
+# type          host            name            device
+export          NOTUSED         maildirs        /dev/vg01/mail
+#+END_EXAMPLE
+
+*Note:* It's possible for the server to import devices that it is
+exporting. Add the client line (below) but set the host to =localhost=
+or =127.0.0.1=.  You will also need to make a small change to
+=/etc/init.d/gnbd-client= because Gentoo tries to start the client
+before the server. Edit =/etc/init.d/gnbd-client= and add
+
+: need gnbd-srv
+
+to =depend()=. The entire block should look something like this:
+
+#+BEGIN_EXAMPLE
+depend() {
+        use dns logger
+        need net
+        need fenced
+        need gnbd-srv
+}
+#+END_EXAMPLE
+
+** Clients
+
+*** /etc/gnbdtab
+
+#+BEGIN_EXAMPLE
+# type          host            name            device
+import          gndb_server       NOTUSED         NOTUSED
+#+END_EXAMPLE
+
+*** /etc/fstab
+
+#+BEGIN_EXAMPLE
+/dev/gnbd/maildirs    /var/mail/virtual    gfs        noatime    0 0
+#+END_EXAMPLE
+
+*Note:* =maildirs= (in =/dev/gnbd/maildirs=) is the name of the gnbd export from
+above.
+
+* Sources
+
+- [[http://sources.redhat.com/cluster/doc/usage.txt]]
+

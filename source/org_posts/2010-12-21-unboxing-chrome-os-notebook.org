@@ -1,0 +1,72 @@
+#+TITLE: Unboxing the Chrome OS Notebook
+#+AUTHOR: PerlStalker
+#+DATE: [2010-12-21 Tue 16:39]
+#+begin_html
+---
+layout: post
+title: Unboxing the Chrome OS Notebook
+date: 2010-12-21 16:39
+comments: true
+categories: [google, chrome-os]
+---
+#+end_html
+/Originally posted at [2010-12-21 Tue 16:39]/
+
+Google is coming out with a new operating system they call [[http://www.google.com/chromeos/][Chrome
+OS]]. It's new and shiny and I thought it would be fun to try out but
+don't have the free cash the throw into buying a new device with it
+installed. (Not that there are any out at the moment.) Anyway, a month
+or so back I signed up for the [[http://www.google.com/chromeos/pilot-program.html][Google Chrome OS Pilot Program]]. The
+program is designed to help Google find new guinea pigs to try Chrome
+OS and give Google feedback on how it works.
+
+Well, I was home this afternoon because I had a screaming headache. After I
+woke up and feeling much better about the world, there came a knock at the
+door. The world's greatest UPS guy left me my own shiny [[http://www.google.com/chromeos/pilot-program-cr48.html][Cr-48 Chrome Notebook]].
+I guess Google liked something about my application.
+
+So, with hands itching to play with a new toy, I pulled this little guy out of
+the box.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/cr48.jpg "Cr-48" %}
+#+END_HTML
+
+Unassuming chap isn't he? Unfortunately, he was a non-functioning little guy.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/cr48-fail.jpg "Cr-48 fail" %}
+#+END_HTML
+
+Man, what a buzz kill. Seriously, Google. If you want people to try out your
+new OS and actually write good things about it, it would help if it worked out
+of the box. Well, off to [[http://www.google.com/chromeos/recovery][the recovery page]] to fix my new notebook.
+
+The supplied shell script was taking forever to download the image. I copied
+the URL and used wget and it took ten minutes. There's an interesting note on
+the recovery screen. "Your computer's developer mode switch is in the ENABLED
+position. If this is unintentional, you should power off and toggle it back on
+after recovery is completed."
+
+Okay, so I followed the instructions and eventually reimaged the Cr-48's disk.
+One reboot later and ... it still failed. Frack. I reread the docs to make
+sure I didn't miss a step and I ran into [[http://www.google.com/support/chromeos/bin/answer.py?answer=1086551][this page]] which describes what I was
+seeing. Apparently, Google sent me the machine in developer mode which allows
+one to install their own version of Chrome OS. Flipping the hidden switch out
+of developer mode fixed things so now it boots like it's supposed to.
+
+I ran through the initial setup wizard and logged in with my Google account.
+Up popped the Chrome web browser which downloaded all of my apps, extensions
+and bookmarks thanks to the sync feature of Chrome.
+
+Unfortunately, I wasn't able to do much more than that because the stupid
+piece of crap kept shutting down. It's sort of behaving like it's over heating
+but the machine doesn't feel hot. I'll keep playing with it but, so far, I'm
+supremely unimpressed.
+
+A few more thoughts. The Cr-48 has a single mouse button like a Mac but allows
+you to double click by tapping with two fingers. Scrolling is done by dragging
+two fingers across the pad. It definitely takes some getting used to. You can
+actually click the track pad but it moves the pointer when you do it.
+Definitely funky.
+

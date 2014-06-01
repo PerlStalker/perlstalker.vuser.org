@@ -1,0 +1,55 @@
+#+TITLE: Running Emacs Functions in Batch Mode
+#+AUTHOR: PerlStalker
+#+DATE: [2011-11-10 Thu 10:22]
+#+begin_html
+---
+layout: post
+title: Running Emacs Functions in Batch Mode
+date: 2011-11-10 10:22
+comments: true
+categories: [emacs]
+---
+#+end_html
+
+/Originally posted at [2011-11-10 Thu 10:22]/
+
+I use emacs for a lot of things at work. One of the more useful is [[http://orgmode.org/][org-mode]]
+for to do lists, scheduling and meeting notes. Org-mode can sync to mobile
+devices running the app MobileOrg. Unfortunately, that sync is a manual
+process. The good news, emacs is scriptable and can be run in batch mode to
+automate things. Here are a couple of things I use.
+
+*Note:* Emacs batch mode spews a huge amount of crap to stderr. If you're
+putting these in cron, you may want to slap a =2>/dev/null= on there to keep it
+quiet.
+
+* Sync with MobileOrg
+
+The first line pushes the local org files to sync and the second pulls changes
+coming from the device.
+
+#+BEGIN_SRC sh
+emacs --batch -l $HOME/.emacs -f org-mobile-push
+emacs --batch -l $HOME/.emacs -f org-mobile-pull
+#+END_SRC
+
+* Publish Meeting Minutes
+
+I keep meeting minutes using org-mode and then publish them to my web site. I
+also maintain my personal work site using org-mode. To publish all configured
+sites, you can use the script below.
+
+#+BEGIN_SRC sh
+emacs --batch -l $HOME/.emacs -f org-publish-all
+#+END_SRC
+
+If you want to publish a specific site rather than all of them, you can use
+this incantation.
+
+#+BEGIN_SRC sh
+emacs --batch -l $HOME/.emacs --eval '(org-publish "meetings")'
+#+END_SRC
+
+*Updated [2012-03-22 Thu 22:49]:* It's also possible to use =--eval=
+ with =emacsclient=. You, of course, need emacs server running but it makes
+ those batch runs much faster.

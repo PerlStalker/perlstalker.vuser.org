@@ -1,0 +1,69 @@
+#+TITLE: Convert a Moose Object into a Subtype
+#+AUTHOR: PerlStalker
+#+DATE: [2011-06-03 Fri 14:01]
+#+begin_html
+---
+layout: post
+title: Convert a Moose Object into a Subtype
+date: 2011-06-03 14:01
+comments: true
+categories: [Moose, perl]
+---
+#+end_html
+/Originally posted at [2011-06-03 Fri 14:01]/
+
+Have you ever had the situation where you had a parent class but you find out
+later in the code that you really want a subclass? With perl Moose, it's
+really easy to do.
+
+Consider the classic point example described in 
+[[http://search.cpan.org/~doy/Moose-2.0001/lib/Moose/Cookbook/Basics/Recipe1.pod][Moose::Cookbook::Basics::Recipe1]]. Suppose I start with a Point but I decide
+later that I need that point to shift into 3D. I don't want to change the
+values for x and y, I just want to add the new z point. I could brute force it
+by creating a new point and copying the values over from the old point but
+that feels like more work than it should be. Well, it is.
+
+Fortunately, Moose uses Class::MOP::Class which provides the rebless_instance
+method which can convert a object into a subtype.
+
+#+BEGIN_SRC perl
+package Point;
+use Moose;
+
+has 'x' => (isa => 'Int', is => 'rw');
+has 'y' => (isa => 'Int', is => 'rw');
+
+package Point3D;
+use Moose;
+extends 'Point';
+
+has 'z' => (isa => 'Int', is => 'rw');
+
+package main;
+use Data::Dumper;
+
+my $p1  = Point->new(x => 4, y => 3);
+print Dumper $p1;
+
+$p1 = Point3D->meta->rebless_instance($p1);
+print Dumper $p1;
+#+END_SRC
+
+And the output:
+
+#+BEGIN_EXAMPLE
+$VAR1 = bless( {
+                 'y' => 3,
+                 'x' => 4
+               }, 'Point' );
+$VAR1 = bless( {
+                 'y' => 3,
+                 'x' => 4
+               }, 'Point3D' );
+#+END_EXAMPLE
+
+Now =$p1= is a Point3D object rather than a Point object.
+
+You can go backwards, too, with the =rebless_instance_back= method but you face
+the potential for data loss when you do that.
+

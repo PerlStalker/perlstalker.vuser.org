@@ -1,0 +1,86 @@
+#+TITLE: Testing for "Bitness" in Configuration Manager 2012 App Deployments
+#+AUTHOR: PerlStalker
+#+begin_html
+---
+layout: post
+title: Testing for "Bitness" in Configuration Manager 2012 App Deployments
+date: 2012-04-30 10:30
+comments: true
+categories: [system-center, configuration-manager-2012, microsoft]
+---
+#+end_html
+We started our deployment of System Center Configuration Manager 2012
+last week and I ran into an interesting problem.
+
+One of the first apps I rolled out to test with was
+[[http://strawberryperl.com/][Strawberry Perl]]. I grabbed the 64-bit MSI and ran through the *Create
+Application* wizard and added the MSI to the deployment types. One
+quick deployment later and ConfigMgr was happily installing perl on my
+servers. 
+
+... Most of my servers.
+
+You see, I still have a couple of 32-bit servers hanging around and
+the 64-bit MSI wouldn't install. D'oh. So, I figured it would be easy
+to jump into the *Requirements* of the distribution and limit the
+package to 64-bit systems. It wasn't. While there are options for RAM
+amounts, CPU speed and disk space there's nothing to test for CPU
+architecture.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/configmgr-deployment-requirements.png 400 "Create Requirements" %}
+#+END_HTML
+
+To fix this, I created a new *Global Condition* to test for the
+"bitness" of a server.
+
+The information I'm looking for is in the =AddressWidth= property of
+the =Win32_Processor= class. You can see the list of properties by
+running =gwmi Win32_Processor= in powershell. If you run
+
+#+BEGIN_EXAMPLE
+gwmi -query "select * from Win32_Processor where AddressWidth = 32"
+#+END_EXAMPLE
+
+and get back a screen full of text, your system is 32 bit. If you
+specify the wrong value for =AddressWidth=, the command will exit with
+no output.
+
+The condition properties should look something like this when you're done.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/configmgr-bitness-properties.png 400 "bitness Properties" %}
+#+END_HTML
+
+Once that's done, it was a simple matter of adding the check to the
+deployment.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/configmgr-bitness-requirement.png 400 "Create Requirement" %}
+#+END_HTML
+
+Set the *Value* field to =64= for 64-bit systems and =32= for 32-bit
+systems and you're done.
+
+Having said all that, I'm still not sure that I haven't missed a
+setting somewhere. One would think that a test to see if an app
+matches the target architecture would have been a no-brainer to
+include. If there's a setting I missed, please let me know because
+not having it just doesn't make any sense.
+
+*Update [2012-05-01 Tue 08:25]:* One of my co-workers pointed out that
+ there is, in fact, an "easier" way.
+
+When you add a requirement, there's an option for =Operating
+system=. In the tree view at the bottom of the pane, you can select
+just the 64-bit version of the OS that you're targeting.
+
+#+BEGIN_HTML
+{% img http://perlstalker.vuser.org/images/configmgr-os-requirement.png 400 "OS Requirements" %}
+#+END_HTML
+
+I totally missed that before. It takes a bit more clicky-clicky to use
+for every 64-bit or 32-bit only package you deploy but it may be more
+obvious to the next admin.
+
+
