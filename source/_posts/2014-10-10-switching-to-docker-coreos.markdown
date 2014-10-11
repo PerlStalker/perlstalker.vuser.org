@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Switching to Docker and CoreOS"
-date: 2014-10-10
+date: 2014-10-10 22:53:00 -0600
 comments: true
 categories:
 - docker
