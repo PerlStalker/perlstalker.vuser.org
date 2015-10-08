@@ -41,6 +41,10 @@ foreach my $entry (@{ $cal->entries }) {
     #print 'Entry: ', Dumper $entry;
 
     my %props = %{ $entry->properties };
+
+    # skip entries with no start or end time
+    next if (not $props{dtstart}[0] or not $props{dtend}[0]);
+
     my $dtstart = DateTime::Format::ICal->parse_datetime($props{dtstart}[0]->value);
     my $dtend   = DateTime::Format::ICal->parse_datetime($props{dtend}[0]->value);
 
