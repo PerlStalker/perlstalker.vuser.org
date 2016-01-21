@@ -9,6 +9,10 @@ use DateTime::Format::ICal;
 use Getopt::Long;
 my $category = 'ical';
 
+# Only sync events newer than this many weeks in the past.
+# Set to 0 to sync all past events.
+my $syncweeksback = 2;
+
 GetOptions(
     'category|c=s' => \$category
 );
@@ -47,6 +51,8 @@ foreach my $entry (@{ $cal->entries }) {
 
     my $dtstart = DateTime::Format::ICal->parse_datetime($props{dtstart}[0]->value);
     my $dtend   = DateTime::Format::ICal->parse_datetime($props{dtend}[0]->value);
+    # Perhaps only sync some weeks back
+    next if ($syncweeksback != 0 and $dtend < DateTime->now->subtract(weeks => $syncweeksback));
 
     my $duration = $dtend->subtract_datetime($dtstart);
 
