@@ -69,3 +69,8 @@ easily, in emacs.
 
 So, there you go. A relatively pain free way to pull any iCal calendar
 into emacs.
+
+*Update 2016-01-21*: I've incorporated a suggestion from Anders
+Johansson that prevents ical2org.pl from syncing old events. I set the
+default to two weeks in the past. To get the old behavior set
+`$syncweeksback` to 0.
