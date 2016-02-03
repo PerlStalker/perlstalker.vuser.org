@@ -74,3 +74,6 @@ into emacs.
 Johansson that prevents ical2org.pl from syncing old events. I set the
 default to two weeks in the past. To get the old behavior set
 `$syncweeksback` to 0.
+
+*Update 2016-02-03*: Thanks to gr4nchio for a fix for recurring
+ events.
