@@ -52,7 +52,9 @@ foreach my $entry (@{ $cal->entries }) {
     my $dtstart = DateTime::Format::ICal->parse_datetime($props{dtstart}[0]->value);
     my $dtend   = DateTime::Format::ICal->parse_datetime($props{dtend}[0]->value);
     # Perhaps only sync some weeks back
-    next if ($syncweeksback != 0 and $dtend < DateTime->now->subtract(weeks => $syncweeksback));
+    next if ($syncweeksback != 0
+	     and $dtend < DateTime->now->subtract(weeks => $syncweeksback)
+	     and !defined $props{rrule});
 
     my $duration = $dtend->subtract_datetime($dtstart);
 
@@ -70,9 +72,12 @@ foreach my $entry (@{ $cal->entries }) {
 	    $dt->set_time_zone(
 		$props{dtstart}[0]->parameters->{'TZID'} ||
 		$gprops{'x-wr-timezone'}[0]->value
-	    );
-	    print "* ".$props{summary}[0]->decoded_value."\n";
+		);
+
 	    my $end = $dt->clone->add_duration($duration);
+	    next if ( $end < DateTime->now->subtract(weeks => $syncweeksback) );
+	    
+	    print "* ".$props{summary}[0]->decoded_value."\n";
 	    print '  ', org_date_range($dt, $end), "\n";
 	    #print $dt, "\n";
 	    print  "  :PROPERTIES:\n";
