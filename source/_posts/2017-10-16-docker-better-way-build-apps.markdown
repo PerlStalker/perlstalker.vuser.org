@@ -9,9 +9,7 @@ categories:
 
 In a very short time, Docker has grown from a cool idea to the way
 cloud services are run. Getting into Docker can be daunting. That's
-why I wrote the video training course "[Docker - A Better Way to Build
-Apps](https://www.packtpub.com/virtualization-and-cloud/docker-better-way-build-apps-video)"
-from Packt Publishing.
+why I wrote the video training course "[Docker - A Better Way to Build Apps](https://www.packtpub.com/virtualization-and-cloud/docker-better-way-build-apps-video)" from Packt Publishing.
 
 This course provides an introduction to Docker and will teach you all
 you need to know to get started developing your own applications in
