@@ -15,13 +15,10 @@ orchestration comes in.
 Docker Swarm is a great tool to use when you first get started with
 orchestration. Swarm is built into Docker. There's no additional
 software to install. You can learn more about running services in
-Docker Swarm in my video course "[Dive into Orchestration with Docker
-Swarm](https://www.packtpub.com/virtualization-and-cloud/dive-orchestration-docker-swarm-video)".
+Docker Swarm in my video course "[Dive into Orchestration with Docker Swarm](https://www.packtpub.com/virtualization-and-cloud/dive-orchestration-docker-swarm-video)".
 
 Sometimes, however, you need more power. That's where Kubernetes comes
-in. In my new course "[Working with Advanced Docker
-Operations](https://www.packtpub.com/virtualization-and-cloud/working-advanced-docker-operations-video)",
-you get an introduction to running services in Kubernetes. You learn
+in. In my new course "[Working with Advanced Docker Operations](https://www.packtpub.com/virtualization-and-cloud/working-advanced-docker-operations-video)", you get an introduction to running services in Kubernetes. You learn
 how to create new services, connect to shared storage, and deploy load
 balancers. It's worth it just for the introduction to Kubernetes.
 
